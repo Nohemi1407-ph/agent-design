@@ -113,11 +113,16 @@ curl -s -X POST http://localhost:3000/api/generate-image \\
     "prompt": "FULL PROMPT (see below)",
     "inputImages": ["<reference image absPath converted to /uploads/... path>"],
     "aspectRatio": "${carousel?.aspectRatio || "4:5"}",
-    "resolution": "1K"
+    "resolution": "1K",
+    "carouselId": "${carousel?.id || "{ID}"}"
   }'
+
+The response now includes "creditsUsed" and "balanceAfter" — mention them to the user after
+each slide so they see real-time spend (e.g. "Slide 3 listo · 45 créditos · balance 882").
 
 CREDIT EFFICIENCY: Always use "1K" (Instagram displays 1080px max — 2K is wasted credit).
 Only use "2K" if the user explicitly asks for "high res" or "print quality".
+Always include carouselId so usage is grouped per carousel.
 
 The prompt for each slide MUST include the following 4 blocks (in this exact order):
 

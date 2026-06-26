@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
+import { fetchKieBalance, logUsage } from "@/lib/credits";
+import { now } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
     aspectRatio?: string;
     resolution?: string;
     inputImages?: string[];
+    carouselId?: string;
   };
   try {
     body = await request.json();
@@ -125,6 +128,9 @@ export async function POST(request: NextRequest) {
     resolution,
   };
   if (isImageToImage) input.input_urls = inputUrls;
+
+  // Snapshot balance BEFORE generation to compute the real credit cost after.
+  const balanceBefore = await fetchKieBalance();
 
   const createRes = await fetch(`${KIE_BASE}/api/v1/jobs/createTask`, {
     method: "POST",
@@ -195,9 +201,30 @@ export async function POST(request: NextRequest) {
   await fs.mkdir(uploadsDir, { recursive: true });
   await fs.writeFile(path.join(uploadsDir, filename), buffer);
 
+  // Snapshot balance AFTER and log the real credits used.
+  const balanceAfter = await fetchKieBalance();
+  const creditsUsed =
+    balanceBefore !== null && balanceAfter !== null
+      ? Math.max(0, balanceBefore - balanceAfter)
+      : 0;
+
+  if (creditsUsed > 0) {
+    await logUsage({
+      taskId,
+      mode: isImageToImage ? "image-to-image" : "text-to-image",
+      resolution,
+      aspectRatio,
+      creditsUsed,
+      carouselId: body.carouselId,
+      createdAt: now(),
+    });
+  }
+
   return NextResponse.json({
     path: `/uploads/${filename}`,
     taskId,
     mode: isImageToImage ? "image-to-image" : "text-to-image",
+    creditsUsed,
+    balanceAfter,
   });
 }
