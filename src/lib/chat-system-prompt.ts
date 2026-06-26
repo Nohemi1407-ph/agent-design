@@ -8,14 +8,22 @@ export function buildSystemPrompt(
   carousel?: Carousel | null,
   stylePreset?: StylePreset | null
 ): string {
+  const socials = brand.socials || {};
+  const socialLines: string[] = [];
+  if (socials.instagram) socialLines.push(`Instagram: ${socials.instagram}`);
+  if (socials.website) socialLines.push(`Website: ${socials.website}`);
+  if (socials.tiktok) socialLines.push(`TikTok: ${socials.tiktok}`);
+  if (socials.youtube) socialLines.push(`YouTube: ${socials.youtube}`);
+
   const brandSection = brand.name
-    ? `## Brand identity
+    ? `## Brand identity (LOCKED — appears on EVERY slide)
 - Name: ${brand.name}
 - Primary: ${brand.colors.primary} | Secondary: ${brand.colors.secondary} | Accent: ${brand.colors.accent}
 - Background: ${brand.colors.background} | Surface: ${brand.colors.surface}
 - Heading font: "${brand.fonts.heading}" | Body font: "${brand.fonts.body}"
-- Logo: ${brand.logoPath ? brand.logoPath : "none"}
-- Style: ${brand.styleKeywords.length > 0 ? brand.styleKeywords.join(", ") : "professional, clean"}`
+- Logo file: ${brand.logoPath ? brand.logoPath : "none — use typographic wordmark of the name"}
+- Style: ${brand.styleKeywords.length > 0 ? brand.styleKeywords.join(", ") : "professional, clean"}
+${socialLines.length > 0 ? `- Socials (display in EVERY slide footer / brand position):\n  - ${socialLines.join("\n  - ")}` : "- Socials: none provided"}`
     : `## Brand not configured
 Use the design JSON as the only source of truth for visual style.`;
 
@@ -90,10 +98,23 @@ The JSON has TWO halves that work together:
     "brand_identity": {
       "name": "${brand.name || "(none — leave empty, do not invent)"}",
       "logo_path": "${brand.logoPath || "(none — use a typographic wordmark with the brand name instead)"}",
-      "logo_treatment": "${brand.logoPath ? "use the user's logo image" : brand.name ? "wordmark from brand.name" : "none"}",
+      "logo_treatment": "${brand.logoPath ? "use the user's logo image (passed as second inputImages slot in every call)" : brand.name ? "wordmark from brand.name" : "none"}",
+      "socials": {
+        "instagram": "${socials.instagram || ""}",
+        "website": "${socials.website || ""}",
+        "tiktok": "${socials.tiktok || ""}",
+        "youtube": "${socials.youtube || ""}"
+      },
+      "social_handles_to_show": [${[socials.instagram, socials.website, socials.tiktok, socials.youtube].filter(Boolean).map((s) => `"${s}"`).join(", ")}],
+      "position_in_slide": "match where the reference places its logo/handle (top-left | top-center | bottom-center)",
       "slide_number_position": "top-right|top-left|none (match what the reference does)",
-      "position_in_slide": "match where the reference places its logo (top-left | top-center | bottom-center | etc.)",
-      "RULE": "The brand_identity ALWAYS comes from the user's brand setup — NEVER from the reference. If the reference shows '@aimsols' or any other handle/email/agency name, REMOVE IT and put the user's name in the same position. If the user has no logo, never invent one — use a clean text wordmark of brand.name."
+      "RULES": [
+        "The brand identity ALWAYS comes from the user's brand setup — NEVER from the reference image",
+        "Display logo (or wordmark) + at least one social handle on EVERY slide",
+        "If reference shows '@aimsols' or any other handle/email/agency name → REMOVE and replace with the user's logo + handle in the same position",
+        "Never invent a logo glyph — use the user's logo file or a clean wordmark of brand.name",
+        "Never invent social handles — only display the ones listed in socials"
+      ]
     },
     "mood": "premium|editorial|playful|brutalist|minimal"
   },
@@ -162,12 +183,24 @@ The JSON has TWO halves that work together:
 5. Wait for confirmation OR proceed immediately if the user already said "procede" / "dale".
 
 ### STEP B — Plan the carousel narrative
-Once the JSON is set, plan a ${Math.min(8, MAX_SLIDES)}-slide arc:
-- Slide 1: HOOK — provocative question, stat, or bold statement (max 8 words for MASSIVE TEXT)
-- Slides 2-3: Setup — establish the problem or context
-- Slides 4-6: Value — one key insight per slide
-- Slide 7: Summary or transformation
-- Slide 8: CTA — "Follow for more" / "Save this" / "Share"
+- If the user specifies N slides ("5 slides", "6 slides") → generate EXACTLY N slides.
+  The LAST slide is ALWAYS a CTA (call to action). Non-negotiable. Even if you "feel done"
+  after slide N-1, the Nth slide MUST be the CTA. Track which slide you're on:
+  "creating slide X of N" — when X == N, the slide MUST be the CTA.
+- If the user does not specify a number → default to ${Math.min(8, MAX_SLIDES)} slides.
+- Arc template (scales to N):
+  - Slide 1: HOOK — provocative question, stat, or bold statement (max 8 words)
+  - Middle slides: setup → value → insights (one per slide)
+  - Slide N (FINAL): CTA — "Sígueme para más" / "Guarda este post" / "Comparte si te sirvió"
+- Before starting, post the plan in chat as a numbered list so the user sees ALL N
+  slides including the CTA. Example for N=5:
+    1. Hook — pose frontal_hero
+    2. Problem — pose thinker_three_quarter
+    3. Key insight — pose presenting
+    4. Transformation — pose looking_up
+    5. CTA — pose arms_open_invitation (the call-to-action slide)
+- After saving slide N-1, immediately move to generating slide N (the CTA). Do not stop.
+  Do not ask "should I continue?" — finish the carousel.
 
 For SINGLE POST mode (user says "post" or "una sola pieza"): create ONE slide carrying the
 full message — hook + key point + CTA in a single image.
@@ -179,11 +212,21 @@ curl -s -X POST http://localhost:3000/api/generate-image \\
   -H "Content-Type: application/json" \\
   -d '{
     "prompt": "FULL PROMPT (see below)",
-    "inputImages": ["<reference image absPath converted to /uploads/... path>"],
+    "inputImages": ["<reference image /uploads/... path>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}],
     "aspectRatio": "${carousel?.aspectRatio || "4:5"}",
     "resolution": "1K",
     "carouselId": "${carousel?.id || "{ID}"}"
   }'
+
+${brand.logoPath ? `IMPORTANT — TWO INPUT IMAGES ALWAYS:
+- IMAGE 1 = the reference (design DNA — palette, type, mood, motif, layout)
+- IMAGE 2 = the user's logo at "${brand.logoPath}" (must appear unchanged in the brand position of every slide, do not redesign it)
+In the prompt, explicitly tell the model: "use IMAGE 2 as the brand logo, place it in the brand position the reference uses, keep it pixel-faithful, do not stylize or recolor it".` : `No logo file uploaded — render the brand name "${brand.name || "[no name]"}" as a clean typographic wordmark in the brand position using the design_system typography.`}
+
+Whether logo is present or not, ALSO render every social handle from
+brand_identity.social_handles_to_show as small text near the brand position
+(e.g. Instagram handle below the logo, website below that). Use the design_system
+typography in a small size (~16-22px).
 
 The response now includes "creditsUsed" and "balanceAfter" — mention them to the user after
 each slide so they see real-time spend (e.g. "Slide 3 listo · 45 créditos · balance 882").
@@ -295,10 +338,10 @@ each slide shows it in a different pose, angle and gesture. Same family, never r
 The brand identity is part of the BRAND CONFIG (left panel of the app), exactly like the
 colors and fonts. ALWAYS pull from there, NEVER from the reference image.
 
-- **Brand name to display**: "${brand.name || "(empty — leave the position blank, do not invent)"}"
-- **Logo file**: ${brand.logoPath ? `\`${brand.logoPath}\` — include it in BLOCK 4 of the generation prompt as the brand mark to render. Tell the model: "place this user-provided logo in the same position the reference uses for its logo".` : "No logo uploaded. Use a clean typographic wordmark with the brand name in the design_system typography. Never invent a logo glyph."}
-- **Handles in the reference belong to someone else**: any @handle, email, portfolio URL, or agency name visible in the reference must be REMOVED. Replace with the user's brand name in the same position. The user's name takes priority.
-- Every generation prompt MUST include this line in BLOCK 4: "remove the reference's brand identity (any @handles, emails, agency names) and place \`${brand.name || "[no brand name]"}\` ${brand.logoPath ? `with the user logo at \`${brand.logoPath}\`` : "as a wordmark"} in the same position the reference uses for branding".
+- **Brand name**: "${brand.name || "(empty — leave the position blank, do not invent)"}"
+- **Logo file**: ${brand.logoPath ? `\`${brand.logoPath}\` — passed as IMAGE 2 in every generation call. Render pixel-faithful, no recolor, no restyle.` : "No logo uploaded — use a typographic wordmark of the brand name."}
+- **Social handles to display every slide**: ${socialLines.length > 0 ? socialLines.map((l) => `\`${l}\``).join(", ") : "(none configured)"}
+- Every generation prompt MUST include in BLOCK 4: "remove the reference's brand identity (any @handles, emails, agency names) and place ${brand.logoPath ? `the logo from IMAGE 2` : `\`${brand.name || "[no brand name]"}\` as a wordmark`}${socialLines.length > 0 ? ` plus these handles in small text: ${socialLines.join(", ")}` : ""} in the same position the reference uses for branding".
 
 ## Slide dimensions
 - ${carousel?.aspectRatio || "4:5"} = ${dimensions.width}x${dimensions.height}px

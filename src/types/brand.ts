@@ -16,6 +16,13 @@ export interface CustomFont {
   path: string;
 }
 
+export interface BrandSocials {
+  instagram?: string;   // e.g. "@nohemipirela"
+  website?: string;     // e.g. "nohemipirela.com"
+  tiktok?: string;
+  youtube?: string;
+}
+
 export interface BrandConfig {
   name: string;
   colors: BrandColors;
@@ -23,6 +30,7 @@ export interface BrandConfig {
   customFonts: CustomFont[];
   logoPath: string | null;
   styleKeywords: string[];
+  socials?: BrandSocials;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +51,7 @@ export const DEFAULT_BRAND: BrandConfig = {
   customFonts: [],
   logoPath: null,
   styleKeywords: [],
+  socials: {},
   createdAt: "",
   updatedAt: "",
 };
