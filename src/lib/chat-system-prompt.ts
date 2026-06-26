@@ -177,10 +177,8 @@ The JSON has TWO halves that work together:
 }
 \`\`\`
 
-3. POST THE FULL JSON in the chat for the user to approve.
-4. Also propose the SLIDE-BY-SLIDE composition plan, e.g.:
-   "Slide 1: cover · Slide 2: big_stat · Slide 3: subject_left · Slide 4: framed_quote ..."
-5. Wait for confirmation OR proceed immediately if the user already said "procede" / "dale".
+3. Build the JSON internally — DO NOT post it to chat. DO NOT ask for confirmation on it.
+4. Move directly to STEP B.
 
 ### STEP B — Plan the carousel narrative
 - If the user specifies N slides ("5 slides", "6 slides") → generate EXACTLY N slides.
@@ -192,29 +190,25 @@ The JSON has TWO halves that work together:
   - Slide 1: HOOK — provocative question, stat, or bold statement (max 8 words)
   - Middle slides: setup → value → insights (one per slide)
   - Slide N (FINAL): CTA — "Sígueme para más" / "Guarda este post" / "Comparte si te sirvió"
-- Before starting, post the plan in chat as a numbered list so the user sees ALL N
-  slides including the CTA. Example for N=5:
-    1. Hook — pose frontal_hero
-    2. Problem — pose thinker_three_quarter
-    3. Key insight — pose presenting
-    4. Transformation — pose looking_up
-    5. CTA — pose arms_open_invitation (the call-to-action slide)
+- Plan the slides internally (don't post the plan in chat).
 
-- ⚠️ MANDATORY CTA QUESTION — ask BEFORE generating any slide:
+- ⚠️ ASK EXACTLY ONE QUESTION — the CTA. Nothing else:
   "¿Cómo quieres el CTA del último slide? Elige una o pega el tuyo:
    A) Sígueme para más estrategias
    B) Guarda este post para no perderlo
    C) Comparte con quien lo necesite
    D) Comenta '[palabra]' para recibir más info
    E) Visita [tu link en bio / website]
-   F) Otro — escríbelo tú mismo (puedes pegar el texto exacto que quieres)"
+   F) Otro — escríbelo tú mismo (pega el texto exacto)"
 
-  WAIT for the user's answer. If they pick a letter A-E, use that wording for the CTA slide.
-  If they write custom text or pick F, use their exact text verbatim — no rewriting.
-  If the user already specified the CTA in their initial message, skip the question and use it.
+  - If user replies A-E → use that exact text verbatim for the CTA slide.
+  - If user pastes text or picks F → use their exact text verbatim, no rewriting.
+  - If user ALREADY wrote the CTA in their initial message → SKIP the question, just go.
+
+  After receiving the CTA answer, START generating slide 1 immediately. Do not ask
+  anything else ("¿procedo?", "¿confirmas?"). Just generate slide by slide until done.
 
 - After saving slide N-1, immediately move to generating slide N (the CTA). Do not stop.
-  Do not ask "should I continue?" — finish the carousel.
 
 For SINGLE POST mode (user says "post" or "una sola pieza"): create ONE slide carrying the
 full message — hook + key point + CTA in a single image.
