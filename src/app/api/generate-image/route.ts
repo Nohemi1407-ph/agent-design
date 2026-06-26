@@ -11,7 +11,7 @@ export const maxDuration = 300;
 
 const KIE_BASE = "https://api.kie.ai";
 const KIE_FILE_UPLOAD = "https://kieai.redpandaai.co/api/file-base64-upload";
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 180_000;
 const MAX_INPUT_IMAGES = 16;
 

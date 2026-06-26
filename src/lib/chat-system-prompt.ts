@@ -213,14 +213,29 @@ The JSON has TWO halves that work together:
 For SINGLE POST mode (user says "post" or "una sola pieza"): create ONE slide carrying the
 full message — hook + key point + CTA in a single image.
 
-### STEP C — Generate every slide as an image
-For EACH slide, call /api/generate-image with image-to-image:
+### STEP C — Generate ALL slides in PARALLEL (this is critical for speed)
+Instead of generating slides one at a time, fire them all at once with batch:
 
+curl -s -X POST http://localhost:3000/api/generate-image-batch \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "slides": [
+      { "slideId": "1", "prompt": "FULL PROMPT FOR SLIDE 1", "inputImages": ["<ref>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" },
+      { "slideId": "2", "prompt": "FULL PROMPT FOR SLIDE 2", "inputImages": ["<ref>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" }
+    ]
+  }'
+
+Returns {"results": [{slideId, ok, path, taskId, creditsUsed, balanceAfter, error?}, ...]}.
+Total time ≈ time of the slowest single slide (~60-90s) instead of sum (~5-8 min).
+After batch returns, save each successful slide via POST /api/carousels/.../slides.
+For any failed slide, retry that one individually via /api/generate-image.
+
+For a single slide (e.g. SINGLE POST mode), keep using /api/generate-image directly:
 curl -s -X POST http://localhost:3000/api/generate-image \\
   -H "Content-Type: application/json" \\
   -d '{
-    "prompt": "FULL PROMPT (see below)",
-    "inputImages": ["<reference image /uploads/... path>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}],
+    "prompt": "FULL PROMPT",
+    "inputImages": ["<reference>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}],
     "aspectRatio": "${carousel?.aspectRatio || "4:5"}",
     "resolution": "1K",
     "carouselId": "${carousel?.id || "{ID}"}"
@@ -248,29 +263,10 @@ The prompt for each slide MUST include the following 5 blocks (in this exact ord
 BLOCK 1 — DESIGN SYSTEM (the locked contract, identical every slide):
 Paste design_system inline. This is what makes the slides look like siblings.
 
-BLOCK 2 — SAFE ZONES (in pixels, based on the carousel's ${dimensions.width}x${dimensions.height} canvas):
-\`\`\`
-CANVAS: ${dimensions.width} x ${dimensions.height} px
-OUTER PADDING (untouchable): 80px from every edge
-SAFE CONTENT AREA: ${dimensions.width - 160} x ${dimensions.height - 160} px (centered)
-TEXT BOX MAX WIDTH: ${dimensions.width - 160} px — every text line MUST fit within this width
-INSTAGRAM CROP-SAFE CENTER: keep critical text and faces within central 80% (margin ~108px all sides)
-
-TEXT SIZE RULES (based on word length to guarantee single-line fit):
-- MASSIVE TEXT, longest word ≤ 6 chars  → 140-180px font
-- MASSIVE TEXT, longest word 7-9 chars  → 100-130px font
-- MASSIVE TEXT, longest word 10-12 chars → 70-95px font
-- MASSIVE TEXT, longest word 13+ chars  → 55-70px font OR split phrase into 2 short lines at the natural word boundary
-- EYEBROW: 14-18px, uppercase, +0.15em tracking
-- BODY: 22-28px, line-height 1.4
-- BOTTOM PHRASE: 28-36px
-
-HARD RULES:
-- Every word renders WHOLE on ONE line. NEVER hyphenate. NEVER split a word.
-- No text touches the outer 80px padding.
-- Headlines align to ONE alignment system (use the design JSON's layout.alignment).
-- Maintain consistent baseline rhythm across all slides.
-\`\`\`
+BLOCK 2 — SAFE ZONES:
+Canvas ${dimensions.width}x${dimensions.height}px. 80px outer padding (untouchable).
+MASSIVE TEXT size by longest word: ≤6 chars=160px, 7-9=120px, 10-12=85px, 13+=65px or split at word boundary.
+Eyebrow 14-18px, body 22-28px, CTA 28-36px. Never hyphenate or split words. Use design_system alignment.
 
 BLOCK 3 — SLIDE CONTENT (exact text the model must render):
 EYEBROW: "[text or omit]"
