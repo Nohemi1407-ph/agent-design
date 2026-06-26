@@ -11,9 +11,35 @@ export const maxDuration = 300;
 
 const KIE_BASE = "https://api.kie.ai";
 const KIE_FILE_UPLOAD = "https://kieai.redpandaai.co/api/file-base64-upload";
-const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 180_000;
 const MAX_INPUT_IMAGES = 16;
+
+// Adaptive polling: fast at the start (jobs often finish quickly),
+// back off after the typical generation window
+function nextPollInterval(elapsedMs: number): number {
+  if (elapsedMs < 20_000) return 1500;  // first 20s: poll fast
+  if (elapsedMs < 60_000) return 2500;  // next 40s: normal
+  return 4000;                          // after 60s: relax
+}
+
+// Persistent cache: local /uploads/<file> + mtime → kie.ai public URL.
+// Avoids re-uploading the same reference/logo for every slide in a batch.
+import { readDataSafe, writeData } from "@/lib/data";
+const UPLOAD_CACHE_FILE = "kie-upload-cache.json";
+interface UploadCacheData {
+  entries: Record<string, { url: string; mtime: number; uploadedAt: string }>;
+}
+async function getCachedUrl(key: string, mtime: number): Promise<string | null> {
+  const data = await readDataSafe<UploadCacheData>(UPLOAD_CACHE_FILE, { entries: {} });
+  const entry = data.entries[key];
+  if (entry && entry.mtime === mtime) return entry.url;
+  return null;
+}
+async function setCachedUrl(key: string, mtime: number, url: string): Promise<void> {
+  const data = await readDataSafe<UploadCacheData>(UPLOAD_CACHE_FILE, { entries: {} });
+  data.entries[key] = { url, mtime, uploadedAt: new Date().toISOString() };
+  await writeData(UPLOAD_CACHE_FILE, data);
+}
 
 const VALID_RATIOS = new Set([
   "auto", "1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5",
@@ -27,7 +53,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".webp": "image/webp",
 };
 
-async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
+export async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
   if (/^https?:\/\//i.test(input)) return input;
 
   const rel = input.replace(/^\//, "");
@@ -38,6 +64,11 @@ async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
   const ext = path.extname(filePath).toLowerCase();
   const mime = MIME_BY_EXT[ext];
   if (!mime) throw new Error(`Unsupported image type: ${ext}`);
+
+  // Check the persistent cache first — avoids re-uploading the same file.
+  const stat = await fs.stat(filePath);
+  const cached = await getCachedUrl(rel, stat.mtimeMs);
+  if (cached) return cached;
 
   const buffer = await fs.readFile(filePath);
   const res = await fetch(KIE_FILE_UPLOAD, {
@@ -57,6 +88,7 @@ async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
   if (!res.ok || !url) {
     throw new Error(`Failed to upload input image: ${data?.msg || res.status}`);
   }
+  await setCachedUrl(rel, stat.mtimeMs, url);
   return url;
 }
 
@@ -150,11 +182,12 @@ export async function POST(request: NextRequest) {
   }
 
   const taskId: string = createData.data.taskId;
-  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  const start = Date.now();
+  const deadline = start + POLL_TIMEOUT_MS;
   let imageUrl: string | null = null;
 
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise((r) => setTimeout(r, nextPollInterval(Date.now() - start)));
 
     const pollRes = await fetch(
       `${KIE_BASE}/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
