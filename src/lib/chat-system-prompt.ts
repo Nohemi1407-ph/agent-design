@@ -82,6 +82,11 @@ The JSON has TWO halves that work together:
       "lighting": "soft purple rim from left|cinematic top|flat",
       "finish": "photoreal 3D|editorial photo|flat illustration|brutalist"
     },
+    "central_motif": {
+      "subject": "WHAT it is — be precise: 'classical white marble Greek statue of a young man, head and torso visible', 'tall violet crystal shard, faceted, semi-translucent', 'metallic chrome gear, 3D rendered', etc.",
+      "consistent_features": ["the same exact subject identity must appear in every slide", "same material", "same color palette", "same scale relationship to the canvas"],
+      "what_can_change_per_slide": ["pose / body position / angle of subject", "facing direction (front, 3/4, side, back)", "gesture / action", "camera angle (eye-level, low-angle hero, top-down)", "what the subject is interacting with (the topic prop)"]
+    },
     "brand_identity": {
       "name": "${brand.name || "(none)"}",
       "logo_treatment": "circular monogram|wordmark|none",
@@ -89,68 +94,61 @@ The JSON has TWO halves that work together:
     },
     "mood": "premium|editorial|playful|brutalist|minimal"
   },
-  "composition_library": [
+  "motif_variations": [
     {
-      "id": "cover",
-      "use_for": "Slide 1 — hook",
-      "layout": "Massive title centered, central hero motif behind/below, eyebrow on top, swipe indicator bottom",
-      "focal_point": "the headline word",
-      "energy": "magnetic, scroll-stopping"
+      "id": "frontal_hero",
+      "use_for": "Slide 1 — cover / hook",
+      "pose": "Subject front-facing, centered, magnetic eye-level shot, commanding presence",
+      "interaction": "no prop, just the subject's pure presence"
     },
     {
-      "id": "big_stat",
-      "use_for": "shocking number / data point",
-      "layout": "Huge number takes 60% of canvas (top-left or center), tiny supporting line below, decorative motif balancing the negative space",
-      "focal_point": "the number",
-      "energy": "revelation"
+      "id": "thinker_three_quarter",
+      "use_for": "problem framing / contemplation",
+      "pose": "Subject in 3/4 view, hand on chin or temple, slight downward gaze",
+      "interaction": "looking at a small floating object representing the problem"
     },
     {
-      "id": "subject_left_text_right",
-      "use_for": "concept explanation with a metaphor",
-      "layout": "Central 3D motif anchored to the left half, headline + body stacked on the right half aligned left",
-      "focal_point": "split between motif and headline",
-      "energy": "editorial, balanced"
+      "id": "presenting",
+      "use_for": "revealing a key idea / stat / fact",
+      "pose": "Subject slightly 3/4, one hand extended forward presenting something",
+      "interaction": "holding or pointing to the topic-specific prop (the stat, the icon, etc.)"
     },
     {
-      "id": "subject_right_text_left",
-      "use_for": "alternate explanation — breaks visual monotony from previous slide",
-      "layout": "Mirror of the previous: motif right, text block left",
-      "focal_point": "split",
-      "energy": "editorial"
+      "id": "looking_up",
+      "use_for": "aspiration / future / growth message",
+      "pose": "Subject head tilted up, low-angle shot makes them look heroic",
+      "interaction": "small upward-floating elements above (sparks, particles, ascending shapes)"
     },
     {
-      "id": "framed_quote",
-      "use_for": "principle / insight phrased as a quote",
-      "layout": "Pull-quote centered with oversized quotation marks in accent color, motif as faded background",
-      "focal_point": "the words",
-      "energy": "contemplative"
+      "id": "side_profile",
+      "use_for": "transition / motion / momentum",
+      "pose": "Subject in full side profile, looking forward with intent",
+      "interaction": "motion lines or particles trailing behind"
     },
     {
-      "id": "split_screen",
-      "use_for": "before/after, this/that, problem/solution",
-      "layout": "Canvas split 50/50 vertically with a thin accent divider, each half has its own mini-motif and short label",
-      "focal_point": "the contrast",
-      "energy": "transformational"
+      "id": "interacting_with_tool",
+      "use_for": "method / how-to / technique",
+      "pose": "Subject working with the topic-prop (laptop, instrument, blueprint)",
+      "interaction": "actively using the prop, hands engaged"
     },
     {
-      "id": "stacked_steps",
-      "use_for": "process or list of 3 items",
-      "layout": "Three rows stacked vertically, each with a small icon-style motif + short text, numbered 01/02/03",
-      "focal_point": "the rhythm",
-      "energy": "informational"
+      "id": "back_view_horizon",
+      "use_for": "vision / journey / what's possible",
+      "pose": "Subject from behind, looking out toward a horizon or large element",
+      "interaction": "facing the destination or goal element"
     },
     {
-      "id": "cta_card",
-      "use_for": "final slide — call to action",
-      "layout": "Bold CTA text centered, motif transformed into an arrow/forward gesture, button-like accent bar below the text, brand mark prominent",
-      "focal_point": "the action verb",
-      "energy": "commanding"
+      "id": "arms_open_invitation",
+      "use_for": "final slide — call to action / invitation",
+      "pose": "Subject front-facing, arms slightly open, welcoming gesture",
+      "interaction": "the CTA text or arrow integrated near the open hands"
     }
   ],
   "variety_rules": [
-    "No two consecutive slides use the same composition id",
-    "The whole carousel should hit at least 4 different composition ids",
-    "Cover composition only for slide 1, cta_card only for the last slide"
+    "Use the SAME subject (identity, material, palette) on EVERY slide — never swap it",
+    "Each slide picks a DIFFERENT motif_variations.id — no two consecutive slides repeat a pose",
+    "The whole carousel should hit at least 4 different pose variations",
+    "frontal_hero only for slide 1, arms_open_invitation only for the last slide"
   ]
 }
 \`\`\`
@@ -227,15 +225,18 @@ BODY: "[text or omit]"
 BOTTOM PHRASE: "[CTA or omit]"
 SLIDE NUMBER: "[NN / NN if the JSON's layout.slide_number_position is set]"
 
-BLOCK 4 — COMPOSITION (the chosen layout for THIS slide):
-Paste the full composition object from composition_library that you assigned to this slide.
-Explicitly state: "Use the layout described in this composition. Do not fall back to the
-reference's original composition — use THIS one, with the design_system styling."
+BLOCK 4 — SUBJECT IDENTITY (locked across all slides):
+Paste design_system.central_motif inline. Explicitly state:
+"The subject is exactly: <subject description>. Same identity, same material, same scale
+as in IMAGE 2. Do not invent a different subject. The subject must be recognizably the
+same character/object across every slide of this carousel."
 
-BLOCK 5 — CENTRAL MOTIF (topic-native for THIS slide):
-Describe the hero visual element that fits the slide's topic AND the composition's
-focal_point requirement. It must use the SAME decoration_language (lighting, finish,
-ambient elements) so it feels native to the carousel.
+BLOCK 5 — POSE VARIATION (different on every slide):
+Paste the motif_variations object assigned to THIS slide (id, pose, interaction).
+Explicitly state:
+"Render the SAME subject from BLOCK 4 in this NEW pose: <pose description>.
+Camera/framing/angle from the pose spec. The subject interacts with: <interaction>.
+Topic-specific prop for this slide (matches the slide's content): <describe the prop>."
 
 QUALITY STANDARDS appended at the end of every prompt:
 "Match the reference's visual density and finish quality. Stop the scroll in under 1 second.
@@ -256,8 +257,9 @@ Use Read on the generated PNG. Check ONLY these critical failures:
 - Text touches or crosses the 80px outer padding → regenerate
 - MASSIVE TEXT illegible (low contrast / overflow) → regenerate
 - design_system clearly broken (wrong palette, wrong typography family) → regenerate
-- This slide looks NEARLY IDENTICAL to the previous slide (same composition) → regenerate
-  with the next composition id from the plan
+- The subject is NOT recognizably the same as in previous slides (different person, different
+  material, different identity) → regenerate emphasizing "same exact subject as IMAGE 2"
+- The pose looks identical to the previous slide → regenerate with the next pose id from the plan
 
 DO NOT regenerate for:
 - Minor decorative differences
@@ -270,14 +272,14 @@ This prevents runaway credit consumption.
 
 ### STEP F — Repeat for all slides
 - design_system is IDENTICAL on every slide (same palette, type, mood, lighting, finish).
-- composition CHANGES per slide following the plan from STEP A. No two consecutive slides
-  use the same composition id. Aim for at least 4 distinct compositions in the carousel.
-- central_motif changes per slide to fit the topic AND the composition's focal_point.
+- central_motif.subject is IDENTICAL on every slide — the SAME character/object always.
+- motif_variations (pose, angle, interaction) CHANGES per slide following the plan.
+  No two consecutive slides use the same pose id. Aim for 4+ distinct poses per carousel.
+- Topic prop changes per slide to fit the slide's content.
 - Reference image is passed as inputImages every time — it carries the visual DNA.
 
-Result: every slide is visually DIFFERENT (different layout, different focal point) but
-unmistakably part of the SAME family (same palette, type, mood, finish) — the "WOW
-consistency without monotony" effect.
+Result: same character/object in every slide (like a photoshoot of one subject) but
+each slide shows it in a different pose, angle and gesture. Same family, never repeats.
 
 ## API — Other endpoints
 - PUT /api/carousels/${carousel?.id || "{ID}"}/slides/{SLIDE_ID} — update slide
