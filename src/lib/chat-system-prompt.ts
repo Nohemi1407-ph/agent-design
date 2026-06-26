@@ -199,6 +199,20 @@ The JSON has TWO halves that work together:
     3. Key insight — pose presenting
     4. Transformation — pose looking_up
     5. CTA — pose arms_open_invitation (the call-to-action slide)
+
+- ⚠️ MANDATORY CTA QUESTION — ask BEFORE generating any slide:
+  "¿Cómo quieres el CTA del último slide? Elige una o pega el tuyo:
+   A) Sígueme para más estrategias
+   B) Guarda este post para no perderlo
+   C) Comparte con quien lo necesite
+   D) Comenta '[palabra]' para recibir más info
+   E) Visita [tu link en bio / website]
+   F) Otro — escríbelo tú mismo (puedes pegar el texto exacto que quieres)"
+
+  WAIT for the user's answer. If they pick a letter A-E, use that wording for the CTA slide.
+  If they write custom text or pick F, use their exact text verbatim — no rewriting.
+  If the user already specified the CTA in their initial message, skip the question and use it.
+
 - After saving slide N-1, immediately move to generating slide N (the CTA). Do not stop.
   Do not ask "should I continue?" — finish the carousel.
 
