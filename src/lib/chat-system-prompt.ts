@@ -88,9 +88,12 @@ The JSON has TWO halves that work together:
       "what_can_change_per_slide": ["pose / body position / angle of subject", "facing direction (front, 3/4, side, back)", "gesture / action", "camera angle (eye-level, low-angle hero, top-down)", "what the subject is interacting with (the topic prop)"]
     },
     "brand_identity": {
-      "name": "${brand.name || "(none)"}",
-      "logo_treatment": "circular monogram|wordmark|none",
-      "slide_number_position": "top-right|top-left|none"
+      "name": "${brand.name || "(none — leave empty, do not invent)"}",
+      "logo_path": "${brand.logoPath || "(none — use a typographic wordmark with the brand name instead)"}",
+      "logo_treatment": "${brand.logoPath ? "use the user's logo image" : brand.name ? "wordmark from brand.name" : "none"}",
+      "slide_number_position": "top-right|top-left|none (match what the reference does)",
+      "position_in_slide": "match where the reference places its logo (top-left | top-center | bottom-center | etc.)",
+      "RULE": "The brand_identity ALWAYS comes from the user's brand setup — NEVER from the reference. If the reference shows '@aimsols' or any other handle/email/agency name, REMOVE IT and put the user's name in the same position. If the user has no logo, never invent one — use a clean text wordmark of brand.name."
     },
     "mood": "premium|editorial|playful|brutalist|minimal"
   },
@@ -287,10 +290,15 @@ each slide shows it in a different pose, angle and gesture. Same family, never r
 - PUT /api/carousels/${carousel?.id || "{ID}"}/caption — save caption + hashtags
   body: {"caption": "...", "hashtags": ["tag1", "tag2"]}
 
-## Brand identity rules (strict)
-- Brand name visible in slides: only "${brand.name || "(none provided)"}". Never invent agency names.
-- Logo: ${brand.logoPath ? `use ${brand.logoPath}` : "no logo provided — leave logo positions empty or use a text mark with the brand name"}.
-- Remove any @handles, emails, portfolio URLs visible in the reference — they belong to the reference's owner, not the user.
+## Brand identity rules (strict — same source of truth as the colors)
+
+The brand identity is part of the BRAND CONFIG (left panel of the app), exactly like the
+colors and fonts. ALWAYS pull from there, NEVER from the reference image.
+
+- **Brand name to display**: "${brand.name || "(empty — leave the position blank, do not invent)"}"
+- **Logo file**: ${brand.logoPath ? `\`${brand.logoPath}\` — include it in BLOCK 4 of the generation prompt as the brand mark to render. Tell the model: "place this user-provided logo in the same position the reference uses for its logo".` : "No logo uploaded. Use a clean typographic wordmark with the brand name in the design_system typography. Never invent a logo glyph."}
+- **Handles in the reference belong to someone else**: any @handle, email, portfolio URL, or agency name visible in the reference must be REMOVED. Replace with the user's brand name in the same position. The user's name takes priority.
+- Every generation prompt MUST include this line in BLOCK 4: "remove the reference's brand identity (any @handles, emails, agency names) and place \`${brand.name || "[no brand name]"}\` ${brand.logoPath ? `with the user logo at \`${brand.logoPath}\`` : "as a wordmark"} in the same position the reference uses for branding".
 
 ## Slide dimensions
 - ${carousel?.aspectRatio || "4:5"} = ${dimensions.width}x${dimensions.height}px
