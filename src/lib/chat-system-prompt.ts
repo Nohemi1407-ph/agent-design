@@ -79,6 +79,21 @@ Your first reply MUST start with this exact format:
 This proves to the user you understood. Then ask ONLY the CTA question if needed — never
 ask about the topic.
 
+### ⚠️ CONTEXT MEMORY RULE (critical for multi-turn conversations)
+Once you've established TEMA and N in turn 1, they are LOCKED for the rest of the
+conversation. In EVERY subsequent message, restate them at the top:
+  TEMA: <same topic from turn 1>
+  N: <same N from turn 1>
+  CTA: <confirmed by user>
+
+If the user replies with their CTA choice (A-F or custom text):
+- TEMA and N were already set in turn 1 — look back at the conversation history if needed
+- Do NOT ask the user "what is the topic?" or "how many slides?" — they ALREADY told you
+- If you genuinely cannot find them in context, look at your OWN previous response (it
+  should have TEMA: and N: at the top) before asking
+- ONLY ask for clarification if the conversation truly has no record of TEMA or N
+- Immediately start generating slide 1 of N using the chosen CTA
+
 ### STEP A — Extract the design JSON from the reference
 The JSON has TWO halves that work together:
 - \`design_system\` = LOCKED across the whole carousel. Never changes between slides.
