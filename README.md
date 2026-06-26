@@ -45,20 +45,36 @@ cd agent-design
 npm install
 ```
 
-### 3. Configura tu API key (opcional pero recomendado)
+### 3. Configura **TU PROPIA** API key de kie.ai
 
-Para que el AI genere imágenes con GPT Image-2 necesitas una API key de [kie.ai](https://kie.ai):
+> 🔑 **IMPORTANTE — cada estudiante usa su propia cuenta.**
+> No comparto mi API key. Cada uno crea su cuenta gratuita, recarga sus créditos
+> y conecta su propia llave. Esto es lo que hace que el AI genere las imágenes premium.
+
+#### Paso a paso para obtener tu key:
+
+1. Entra a **[https://kie.ai](https://kie.ai)** y crea tu cuenta (gratis)
+2. Confirma tu correo y entra al dashboard
+3. Ve a **Profile / API Keys** y genera una nueva key (formato: `xxxxxxxxxxxx...`)
+4. **Cópiala** — la vas a pegar en el siguiente paso
+5. En el dashboard, ve a **Billing / Credits** y recarga al menos **$5–10 USD** (≈ 10–20 carruseles)
+
+#### Conecta tu key en el proyecto:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Abre `.env.local` y pega tu key:
+Abre `.env.local` con tu editor favorito y pega tu key:
 ```
 KIE_API_KEY=tu_api_key_aqui
 ```
 
-> ⚠️ **Sin esta key la app funciona pero sin generación de imágenes IA** — solo modo HTML/CSS.
+Guarda el archivo. Listo.
+
+> ⚠️ **NUNCA subas `.env.local` a GitHub.** Ya está bloqueado por `.gitignore`, pero si lo ves en `git status` algo está mal — para inmediatamente y consúltame.
+
+> 💡 **Sin esta key la app igual funciona pero sin generación de imágenes IA** — solo modo HTML/CSS. Recomendamos configurarla para ver el potencial completo del agente.
 
 ### 4. Levanta el servidor de desarrollo
 ```bash
@@ -146,6 +162,25 @@ A medida que avanzamos en el curso iremos construyendo encima de esta base:
 4. **Implementar publicación directa a Instagram** vía Meta Graph API
 5. **Migrar el storage** de JSON local a una base de datos (Postgres / Supabase)
 6. **Desplegar en Railway o Vercel** para tener tu propia app live
+
+---
+
+## 🔌 APIs externas que usa el proyecto
+
+| API | Para qué | Quién la configura | ¿Obligatoria? |
+|---|---|---|---|
+| **Claude Code CLI** | El chat del AI Co-Creator | Tú, gratis con tu cuenta Claude | ✅ Sí |
+| **kie.ai (GPT Image-2)** | Generación de imágenes de los slides | **Tú, con tu propia cuenta y créditos** | ⚠️ Opcional pero recomendada |
+
+### Cada estudiante usa SUS PROPIAS API keys
+
+- **Yo no comparto mi API key con ustedes** — cada uno crea su cuenta en [kie.ai](https://kie.ai), recarga sus propios créditos y conecta su llave en su `.env.local` local.
+- Esto les enseña el patrón profesional: las apps que usan APIs externas siempre dependen de credenciales personales del operador.
+- **Costo aproximado** por carrusel de 5 slides en kie.ai: **$0.30 – $0.50 USD** (1K resolution, image-to-image).
+
+### Si NO tienen API key
+
+La app sigue funcionando — pueden usar el chat para diseñar slides en **modo HTML/CSS puro** (sin generación de imágenes IA). Es buena forma de empezar antes de invertir en créditos.
 
 ---
 
