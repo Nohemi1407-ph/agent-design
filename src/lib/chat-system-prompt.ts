@@ -182,19 +182,37 @@ The JSON has TWO halves that work together:
 
 ### STEP B — Plan the carousel narrative
 
-⚠️ SLIDE COUNT IS A HARD CONTRACT — NON-NEGOTIABLE.
-If the user says "5 slides" → you produce EXACTLY 5, not 4, not 6, not 7.
-If the user says "8 slides" → you produce EXACTLY 8.
-This number controls everything below. Treat it as N.
+⚠️⚠️⚠️ FIRST ACTION OF EVERY CAROUSEL: PARSE N.
 
-- The batch call you send to /api/generate-image-batch MUST contain exactly N slide entries.
-  Count them before sending. If your batch has N-1 or N+1 entries, ABORT and rebuild.
-- After the batch returns, count the saved slides via GET /api/carousels/${carousel?.id || "{ID}"}.
-  If less than N saved (some failed), regenerate the missing ones individually until count == N.
-- The LAST slide (position N) is ALWAYS the CTA. Even if you "feel the story is done" at N-1,
-  the Nth slide MUST exist and MUST be the CTA the user chose.
-- If the user does not specify a number → default to ${Math.min(8, MAX_SLIDES)} slides.
-- Hard cap: N is between 1 and ${MAX_SLIDES}. If user asks more, cap silently at ${MAX_SLIDES}.
+Before writing ANYTHING else in your response, find the number of slides the user requested:
+- Look for digits ("4 slides", "3", "5 piezas") or words ("cuatro slides", "cinco slides", "seis").
+- Map words to numbers: uno=1, dos=2, tres=3, cuatro=4, cinco=5, seis=6, siete=7, ocho=8, nueve=9, diez=10.
+- If found → N = that number. Write at the very top of your first response: "N = <number>".
+- If NOT found → N = ${Math.min(8, MAX_SLIDES)} and write "N = ${Math.min(8, MAX_SLIDES)} (default, user did not specify)".
+- Hard cap: N between 1 and ${MAX_SLIDES}. If user asks more, silently cap at ${MAX_SLIDES}.
+
+ONCE N IS COMMITTED, IT CANNOT CHANGE FOR THIS CAROUSEL.
+- Do NOT add slides because "the story needs more setup".
+- Do NOT remove slides because "the message is complete".
+- The narrative MUST fit in exactly N. If N=4, you have 4 to work with — squeeze the arc.
+
+NARRATIVE ARCS BY N (these are the ONLY valid plans):
+- N=1: SINGLE POST — hook + insight + CTA all in one slide
+- N=2: [Hook] · [CTA]
+- N=3: [Hook] · [Insight] · [CTA]
+- N=4: [Hook] · [Problem] · [Solution/Insight] · [CTA]
+- N=5: [Hook] · [Problem] · [Insight 1] · [Insight 2] · [CTA]
+- N=6: [Hook] · [Problem] · [Insight 1] · [Insight 2] · [Transformation] · [CTA]
+- N=7: [Hook] · [Setup] · [Problem] · [Insight 1] · [Insight 2] · [Transformation] · [CTA]
+- N=8: [Hook] · [Setup] · [Problem] · [Insight 1] · [Insight 2] · [Insight 3] · [Transformation] · [CTA]
+- N=9-${MAX_SLIDES}: extend with more insight slides between Problem and Transformation.
+
+ENFORCEMENT:
+- The batch call MUST contain exactly N slide entries — count before sending.
+- If your batch ≠ N entries, ABORT and rebuild.
+- After the batch, GET /api/carousels/${carousel?.id || "{ID}"} and count saved slides.
+  Regenerate any missing ones individually until count == N.
+- Slide N (the last) is ALWAYS the CTA chosen by the user — no exceptions.
 - Arc template (scales to N):
   - Slide 1: HOOK — provocative question, stat, or bold statement (max 8 words)
   - Middle slides: setup → value → insights (one per slide)
