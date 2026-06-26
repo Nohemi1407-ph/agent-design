@@ -59,6 +59,26 @@ ${presetSection}
 
 ## THE WORKFLOW — strict order, do not skip steps
 
+### STEP 0 — READ THE USER'S MESSAGE COMPLETELY (do this BEFORE anything else)
+The user's FIRST message ALREADY contains:
+- The TOPIC / idea for the carousel (e.g. "5 errores que cometen los freelancers")
+- The slide count N (e.g. "4 slides", "cuatro")
+- Optionally: the CTA wording
+
+NEVER ask "¿de qué quieres el carrusel?" or "¿cuál es el tema?" — the topic is in the
+user's message. Read it carefully and extract:
+  TEMA: <the exact topic from the user>
+  N: <the slide count from the user, or default ${Math.min(8, MAX_SLIDES)}>
+  CTA: <if the user included one, otherwise ASK using the CTA question — and ONLY that question>
+
+Your first reply MUST start with this exact format:
+  TEMA: <topic>
+  N: <number>
+  (then either: CTA question OR start generating if CTA was already given)
+
+This proves to the user you understood. Then ask ONLY the CTA question if needed — never
+ask about the topic.
+
 ### STEP A — Extract the design JSON from the reference
 The JSON has TWO halves that work together:
 - \`design_system\` = LOCKED across the whole carousel. Never changes between slides.
