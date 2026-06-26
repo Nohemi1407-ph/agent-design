@@ -52,46 +52,113 @@ ${presetSection}
 ## THE WORKFLOW — strict order, do not skip steps
 
 ### STEP A — Extract the design JSON from the reference
+The JSON has TWO halves that work together:
+- \`design_system\` = LOCKED across the whole carousel. Never changes between slides.
+  This is what makes the slides feel like siblings.
+- \`composition_library\` = VARIED. A menu of distinct layouts. Each slide picks a
+  different composition from this library so no two slides look the same.
+
 1. Use Read on every reference image
-2. Build a design JSON describing the visual system. Schema:
+2. Build the JSON:
 \`\`\`json
 {
-  "palette": {
-    "background": "#hex",
-    "text_primary": "#hex",
-    "text_muted": "#hex",
-    "accent": "#hex",
-    "accent_secondary": "#hex"
+  "design_system": {
+    "palette": {
+      "background": "#hex",
+      "text_primary": "#hex",
+      "text_muted": "#hex",
+      "accent": "#hex",
+      "accent_secondary": "#hex"
+    },
+    "typography": {
+      "heading": { "family": "Font Name", "weight": 900, "case": "UPPERCASE|TitleCase|lower", "tracking": "tight|normal|wide" },
+      "body": { "family": "Font Name", "weight": 400 },
+      "eyebrow": { "family": "Font Name", "weight": 600, "case": "UPPERCASE", "tracking": "wide" }
+    },
+    "decoration_language": {
+      "background_treatment": "solid|gradient|3d-render|particles|grid",
+      "background_description": "1 sentence describing the bg style — same vibe across all slides",
+      "ambient_elements": ["floating spheres", "particles", "glow"],
+      "lighting": "soft purple rim from left|cinematic top|flat",
+      "finish": "photoreal 3D|editorial photo|flat illustration|brutalist"
+    },
+    "brand_identity": {
+      "name": "${brand.name || "(none)"}",
+      "logo_treatment": "circular monogram|wordmark|none",
+      "slide_number_position": "top-right|top-left|none"
+    },
+    "mood": "premium|editorial|playful|brutalist|minimal"
   },
-  "typography": {
-    "heading": { "family": "Font Name", "weight": 900, "case": "UPPERCASE|TitleCase|lower", "tracking": "tight|normal|wide", "size_hook_px": 96, "size_content_px": 48 },
-    "body": { "family": "Font Name", "weight": 400, "size_px": 24 },
-    "eyebrow": { "family": "Font Name", "weight": 600, "case": "UPPERCASE", "size_px": 14 }
-  },
-  "layout": {
-    "alignment": "left|center|right",
-    "padding_px": 80,
-    "slide_number_position": "top-right|top-left|none",
-    "brand_position": "top-left|bottom-center|none"
-  },
-  "decorations": {
-    "background_treatment": "solid|gradient|3d-render|particles|grid",
-    "background_description": "1 sentence describing the bg",
-    "central_motif": "the hero visual element (gear, crystal, statue, etc.)",
-    "ambient_elements": ["floating spheres", "particles", "glow"],
-    "lighting": "soft purple rim from left|cinematic top|flat"
-  },
-  "mood": "premium|editorial|playful|brutalist|minimal",
-  "consistency_rules": [
-    "all slides share the same background treatment",
-    "headline always in accent color",
-    "slide number always top-right"
+  "composition_library": [
+    {
+      "id": "cover",
+      "use_for": "Slide 1 — hook",
+      "layout": "Massive title centered, central hero motif behind/below, eyebrow on top, swipe indicator bottom",
+      "focal_point": "the headline word",
+      "energy": "magnetic, scroll-stopping"
+    },
+    {
+      "id": "big_stat",
+      "use_for": "shocking number / data point",
+      "layout": "Huge number takes 60% of canvas (top-left or center), tiny supporting line below, decorative motif balancing the negative space",
+      "focal_point": "the number",
+      "energy": "revelation"
+    },
+    {
+      "id": "subject_left_text_right",
+      "use_for": "concept explanation with a metaphor",
+      "layout": "Central 3D motif anchored to the left half, headline + body stacked on the right half aligned left",
+      "focal_point": "split between motif and headline",
+      "energy": "editorial, balanced"
+    },
+    {
+      "id": "subject_right_text_left",
+      "use_for": "alternate explanation — breaks visual monotony from previous slide",
+      "layout": "Mirror of the previous: motif right, text block left",
+      "focal_point": "split",
+      "energy": "editorial"
+    },
+    {
+      "id": "framed_quote",
+      "use_for": "principle / insight phrased as a quote",
+      "layout": "Pull-quote centered with oversized quotation marks in accent color, motif as faded background",
+      "focal_point": "the words",
+      "energy": "contemplative"
+    },
+    {
+      "id": "split_screen",
+      "use_for": "before/after, this/that, problem/solution",
+      "layout": "Canvas split 50/50 vertically with a thin accent divider, each half has its own mini-motif and short label",
+      "focal_point": "the contrast",
+      "energy": "transformational"
+    },
+    {
+      "id": "stacked_steps",
+      "use_for": "process or list of 3 items",
+      "layout": "Three rows stacked vertically, each with a small icon-style motif + short text, numbered 01/02/03",
+      "focal_point": "the rhythm",
+      "energy": "informational"
+    },
+    {
+      "id": "cta_card",
+      "use_for": "final slide — call to action",
+      "layout": "Bold CTA text centered, motif transformed into an arrow/forward gesture, button-like accent bar below the text, brand mark prominent",
+      "focal_point": "the action verb",
+      "energy": "commanding"
+    }
+  ],
+  "variety_rules": [
+    "No two consecutive slides use the same composition id",
+    "The whole carousel should hit at least 4 different composition ids",
+    "Cover composition only for slide 1, cta_card only for the last slide"
   ]
 }
 \`\`\`
-3. POST THE JSON in the chat for the user to see and approve.
-4. Wait for confirmation OR proceed immediately if the user already said "procede" / "dale"
-   in their message.
+
+3. POST THE FULL JSON in the chat for the user to approve.
+4. Also propose the SLIDE-BY-SLIDE composition plan, e.g.:
+   "Slide 1: cover · Slide 2: big_stat · Slide 3: subject_left · Slide 4: framed_quote ..."
+5. Wait for confirmation OR proceed immediately if the user already said "procede" / "dale".
 
 ### STEP B — Plan the carousel narrative
 Once the JSON is set, plan a ${Math.min(8, MAX_SLIDES)}-slide arc:
@@ -124,10 +191,10 @@ CREDIT EFFICIENCY: Always use "1K" (Instagram displays 1080px max — 2K is wast
 Only use "2K" if the user explicitly asks for "high res" or "print quality".
 Always include carouselId so usage is grouped per carousel.
 
-The prompt for each slide MUST include the following 4 blocks (in this exact order):
+The prompt for each slide MUST include the following 5 blocks (in this exact order):
 
-BLOCK 1 — DESIGN JSON (the locked contract):
-Paste the full design JSON inline.
+BLOCK 1 — DESIGN SYSTEM (the locked contract, identical every slide):
+Paste design_system inline. This is what makes the slides look like siblings.
 
 BLOCK 2 — SAFE ZONES (in pixels, based on the carousel's ${dimensions.width}x${dimensions.height} canvas):
 \`\`\`
@@ -160,9 +227,15 @@ BODY: "[text or omit]"
 BOTTOM PHRASE: "[CTA or omit]"
 SLIDE NUMBER: "[NN / NN if the JSON's layout.slide_number_position is set]"
 
-BLOCK 4 — CENTRAL MOTIF (adapted per slide):
-Describe the topic-native hero visual that replaces the reference's central element.
-Match the JSON's decorations.central_motif style and lighting exactly.
+BLOCK 4 — COMPOSITION (the chosen layout for THIS slide):
+Paste the full composition object from composition_library that you assigned to this slide.
+Explicitly state: "Use the layout described in this composition. Do not fall back to the
+reference's original composition — use THIS one, with the design_system styling."
+
+BLOCK 5 — CENTRAL MOTIF (topic-native for THIS slide):
+Describe the hero visual element that fits the slide's topic AND the composition's
+focal_point requirement. It must use the SAME decoration_language (lighting, finish,
+ambient elements) so it feels native to the carousel.
 
 QUALITY STANDARDS appended at the end of every prompt:
 "Match the reference's visual density and finish quality. Stop the scroll in under 1 second.
@@ -182,7 +255,9 @@ Use Read on the generated PNG. Check ONLY these critical failures:
 - Words hyphenated or split across lines → regenerate
 - Text touches or crosses the 80px outer padding → regenerate
 - MASSIVE TEXT illegible (low contrast / overflow) → regenerate
-- Reference style clearly broken (wrong palette, wrong motif) → regenerate
+- design_system clearly broken (wrong palette, wrong typography family) → regenerate
+- This slide looks NEARLY IDENTICAL to the previous slide (same composition) → regenerate
+  with the next composition id from the plan
 
 DO NOT regenerate for:
 - Minor decorative differences
@@ -194,9 +269,15 @@ SAVE IT AS IS and tell the user in chat what looked off — let them decide whet
 This prevents runaway credit consumption.
 
 ### STEP F — Repeat for all slides
-Use the SAME design JSON and SAME reference image for every slide.
-Only CONTENT and CENTRAL MOTIF change per slide.
-The carousel must feel like one unified campaign — same designer hand throughout.
+- design_system is IDENTICAL on every slide (same palette, type, mood, lighting, finish).
+- composition CHANGES per slide following the plan from STEP A. No two consecutive slides
+  use the same composition id. Aim for at least 4 distinct compositions in the carousel.
+- central_motif changes per slide to fit the topic AND the composition's focal_point.
+- Reference image is passed as inputImages every time — it carries the visual DNA.
+
+Result: every slide is visually DIFFERENT (different layout, different focal point) but
+unmistakably part of the SAME family (same palette, type, mood, finish) — the "WOW
+consistency without monotony" effect.
 
 ## API — Other endpoints
 - PUT /api/carousels/${carousel?.id || "{ID}"}/slides/{SLIDE_ID} — update slide
