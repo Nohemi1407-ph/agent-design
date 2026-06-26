@@ -317,7 +317,12 @@ ${brand.logoPath ? `BRAND POSITION RULE — DIFFERENT FOR FIRST/LAST vs MIDDLE S
 
 ▸ MIDDLE SLIDES (slides 2 through N-1):
   - inputImages = [reference] ONLY — DO NOT pass the logo
-  - In the prompt say: "in the brand position, render only the social handle '${socials.instagram || brand.name || ""}' as clean text in the design_system typography (~22-28px). No logo glyph."
+  - In the prompt say: "in the brand position, render the brand text '${socials.instagram || brand.name || "(brand)"}' as clean text in the design_system typography (~22-28px). No logo glyph."
+  - Priority order for what to render in the middle-slide brand position:
+    1. ${socials.instagram ? `Instagram handle: ${socials.instagram}` : "(no Instagram configured — fall back to next)"}
+    2. ${socials.website ? `Website: ${socials.website}` : "(no website configured — fall back to next)"}
+    3. ${brand.name ? `Brand name as wordmark: ${brand.name}` : "(no brand name — leave empty)"}
+  - Use the FIRST available from this list. Never leave the brand position empty if any value above is set.
   - This keeps middle slides cleaner and the brand mark feels more intentional on the bookend slides.
 
 This rule is non-negotiable — the user explicitly wants logo only on first and last.` : `No logo file uploaded — every slide renders the social handle "${socials.instagram || brand.name || "[no handle]"}" as a clean wordmark in the brand position using the design_system typography.`}
