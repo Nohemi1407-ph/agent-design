@@ -150,6 +150,25 @@ curl -s -X POST http://localhost:3000/api/style-presets \\
   -H "Content-Type: application/json" \\
   -d '{"name": "Style Name", "designRules": "description of visual rules...", "aspectRatio": "${carousel?.aspectRatio || "4:5"}"}'
 
+### Generate AI image with GPT Image-2 (only when KIE_API_KEY is set):
+Text-to-image:
+curl -s -X POST http://localhost:3000/api/generate-image \\
+  -H "Content-Type: application/json" \\
+  -d '{"prompt": "detailed visual description", "aspectRatio": "${carousel?.aspectRatio || "4:5"}"}'
+
+Image-to-image (style transfer from reference, up to 16 inputs):
+curl -s -X POST http://localhost:3000/api/generate-image \\
+  -H "Content-Type: application/json" \\
+  -d '{"prompt": "what to generate IN the style of inputs", "inputImages": ["/uploads/xxx.png"], "aspectRatio": "${carousel?.aspectRatio || "4:5"}"}'
+
+Returns {"path": "/uploads/xxx.png"} — use as background-image or full-bleed <img> in slide HTML.
+WHEN TO USE:
+- Reference images uploaded → use image-to-image passing the reference paths as inputImages, with a prompt that follows the design JSON for this slide's content
+- No references → don't call this endpoint, design pure HTML/CSS
+- Avatar slot empty: do NOT generate people; if reference has a person, replace with a graphic/typographic treatment
+- Never ask the image model to render long paragraphs of text — keep MASSIVE TEXT in the image, body text in HTML on top
+- Generation takes 30-120s per image, be patient
+
 ### Other endpoints:
 - GET /api/carousels/{id} — get carousel with all slides
 - PUT /api/carousels/{id}/slides — reorder (body: { "slideIds": [...] })
