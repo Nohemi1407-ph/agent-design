@@ -71,11 +71,56 @@ ${presetSection}
 1. Extract the key points directly
 2. Create slides from the content
 
-### When reference images are listed above:
-1. Use Read to view each reference image
-2. Study: colors, typography, spacing, layout patterns, background treatment
-3. Replicate that exact visual style in your slides
-4. Mention what you noticed from the reference
+### When reference images are listed above (DESIGN-JSON WORKFLOW):
+1. Use Read on EVERY reference image to actually SEE it
+2. Extract a structured "design JSON" from the reference and POST IT IN THE CHAT for the user
+   to see. This JSON becomes the contract every slide must follow. Schema:
+   \`\`\`json
+   {
+     "palette": {
+       "background": "#hex",
+       "surface": "#hex",
+       "text_primary": "#hex",
+       "text_muted": "#hex",
+       "accent": "#hex",
+       "accent_secondary": "#hex"
+     },
+     "typography": {
+       "heading": { "family": "Font Name", "weight": 900, "case": "UPPERCASE|TitleCase|lower", "tracking": "tight|normal|wide", "size_hook_px": 96, "size_content_px": 48 },
+       "body": { "family": "Font Name", "weight": 400, "size_px": 24, "line_height": 1.5 },
+       "eyebrow": { "family": "Font Name", "weight": 600, "case": "UPPERCASE", "tracking": "wide", "size_px": 14 }
+     },
+     "layout": {
+       "alignment": "left|center|right",
+       "padding_px": 80,
+       "slide_number_position": "top-right|top-left|none",
+       "brand_position": "top-left|bottom-center|none",
+       "content_zones": ["eyebrow", "headline", "body", "cta"]
+     },
+     "decorations": {
+       "background_treatment": "solid|gradient|3d-render|particles|grid",
+       "background_description": "what the bg looks like in 1 sentence",
+       "central_motif": "description of the visual element that dominates (gear, crystal, statue, etc.)",
+       "ambient_elements": ["floating spheres", "particles", "glow"],
+       "borders": "underline accent|none|frame",
+       "lighting": "soft purple rim from left|cinematic top|flat"
+     },
+     "mood": "premium|editorial|playful|brutalist|minimal",
+     "consistency_rules": [
+       "all slides share the same background treatment",
+       "headline always in accent color, body in text_muted",
+       "slide number always top-right in accent box"
+     ]
+   }
+   \`\`\`
+3. Confirm with the user: "Este es el JSON del estilo que detecté — ¿procedo o ajustamos?"
+4. Once confirmed (or if user says "procede"), use the JSON as a HARD CONTRACT for every slide:
+   - Every slide uses palette.background as bg
+   - Every headline uses typography.heading family/weight/case
+   - Every slide places elements in the same zones per layout
+   - Decorations stay consistent across all slides
+5. Only the WORDS change per slide — the design JSON is identical across the whole carousel
+6. Mention which JSON values you applied when describing each finished slide
 
 ### When the user asks for a single POST:
 Create ONE slide that carries the full message — hook + key point + CTA in one composition.
