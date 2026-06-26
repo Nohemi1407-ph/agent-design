@@ -34,7 +34,21 @@ Use the design JSON as the only source of truth for visual style.`;
 - Aspect ratio: ${carousel.aspectRatio} (${DIMENSIONS[carousel.aspectRatio].width}x${DIMENSIONS[carousel.aspectRatio].height}px)
 - Slides: ${carousel.slides.length}/${MAX_SLIDES}
 ${carousel.slides.length > 0 ? carousel.slides.map((s) => `  - Slide ${s.order + 1} (ID: ${s.id})${s.notes ? ` — ${s.notes}` : ""}`).join("\n") : "  (no slides yet)"}
-${(carousel.referenceImages?.length ?? 0) > 0 ? `\n## Reference images (use Read to view these — they are MANDATORY inputs for image-to-image)\n${carousel.referenceImages.map((r) => `- "${r.name}" → ${r.absPath}`).join("\n")}` : "\n## NO REFERENCE IMAGES UPLOADED\nYou cannot proceed. Politely ask the user to upload at least one reference image before generating the carousel — every slide is generated from the reference's style."}`
+${(carousel.referenceImages?.length ?? 0) > 0 ? `\n## Reference images (use Read to view these — they drive image-to-image generation)\n${carousel.referenceImages.map((r) => `- "${r.name}" → ${r.absPath}`).join("\n")}` : `\n## NO REFERENCE IMAGES UPLOADED — TEXT-TO-IMAGE MODE
+No references provided. Generate every slide using text-to-image (no inputImages array).
+Build the design_system yourself based on:
+1. The user's topic / idea (extract mood: serious, playful, technical, luxury, motivational, etc.)
+2. The brand identity above (palette, fonts, logo, name, socials)
+3. Smart defaults for premium Instagram carousels: dark cinematic background, big bold typography, one accent color, subtle 3D motif or photography, clean composition
+
+Invent a single coherent design_system (palette honoring brand colors, typography from brand fonts, decoration_language that fits the topic) and use it identically across ALL slides — exactly like with a reference, but YOU are the reference's author.
+
+The image generation call has no inputImages key in this mode. Example:
+curl -s -X POST http://localhost:3000/api/generate-image \\
+  -H "Content-Type: application/json" \\
+  -d '{"prompt": "FULL PROMPT", "aspectRatio": "${carousel.aspectRatio}", "resolution": "1K", "carouselId": "${carousel.id}"}'
+
+For batch (same — just omit inputImages on each slide entry).`}`
     : "";
 
   const presetSection = stylePreset
