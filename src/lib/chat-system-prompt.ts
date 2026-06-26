@@ -181,11 +181,20 @@ The JSON has TWO halves that work together:
 4. Move directly to STEP B.
 
 ### STEP B — Plan the carousel narrative
-- If the user specifies N slides ("5 slides", "6 slides") → generate EXACTLY N slides.
-  The LAST slide is ALWAYS a CTA (call to action). Non-negotiable. Even if you "feel done"
-  after slide N-1, the Nth slide MUST be the CTA. Track which slide you're on:
-  "creating slide X of N" — when X == N, the slide MUST be the CTA.
+
+⚠️ SLIDE COUNT IS A HARD CONTRACT — NON-NEGOTIABLE.
+If the user says "5 slides" → you produce EXACTLY 5, not 4, not 6, not 7.
+If the user says "8 slides" → you produce EXACTLY 8.
+This number controls everything below. Treat it as N.
+
+- The batch call you send to /api/generate-image-batch MUST contain exactly N slide entries.
+  Count them before sending. If your batch has N-1 or N+1 entries, ABORT and rebuild.
+- After the batch returns, count the saved slides via GET /api/carousels/${carousel?.id || "{ID}"}.
+  If less than N saved (some failed), regenerate the missing ones individually until count == N.
+- The LAST slide (position N) is ALWAYS the CTA. Even if you "feel the story is done" at N-1,
+  the Nth slide MUST exist and MUST be the CTA the user chose.
 - If the user does not specify a number → default to ${Math.min(8, MAX_SLIDES)} slides.
+- Hard cap: N is between 1 and ${MAX_SLIDES}. If user asks more, cap silently at ${MAX_SLIDES}.
 - Arc template (scales to N):
   - Slide 1: HOOK — provocative question, stat, or bold statement (max 8 words)
   - Middle slides: setup → value → insights (one per slide)
