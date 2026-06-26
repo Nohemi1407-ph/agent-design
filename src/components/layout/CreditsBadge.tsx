@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Coins, AlertTriangle } from "lucide-react";
 
 interface CreditsState {
@@ -15,29 +15,39 @@ const LOW_BALANCE_THRESHOLD = 50;
 export function CreditsBadge() {
   const [state, setState] = useState<CreditsState | null>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch("/api/credits", { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
-      setState(data);
-    } catch {
-      // ignore
-    }
-  }, []);
-
   useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const refresh = async () => {
+      try {
+        const res = await fetch("/api/credits", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setState(data);
+      } catch (err) {
+        // Silently ignore aborts and network errors so the dev overlay doesn't pop
+        if ((err as Error)?.name !== "AbortError") {
+          // truly unexpected — keep silent, badge will just stay stale
+        }
+      }
+    };
+
     refresh();
-    // Auto-refresh every 30s so it picks up generations from anywhere
     const id = setInterval(refresh, 30_000);
-    // Also refresh on focus
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
+
     return () => {
+      cancelled = true;
+      controller.abort();
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
-  }, [refresh]);
+  }, []);
 
   if (!state?.enabled) return null;
 
