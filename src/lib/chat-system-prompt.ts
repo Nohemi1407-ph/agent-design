@@ -220,10 +220,15 @@ curl -s -X POST http://localhost:3000/api/generate-image-batch \\
   -H "Content-Type: application/json" \\
   -d '{
     "slides": [
-      { "slideId": "1", "prompt": "FULL PROMPT FOR SLIDE 1", "inputImages": ["<ref>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" },
-      { "slideId": "2", "prompt": "FULL PROMPT FOR SLIDE 2", "inputImages": ["<ref>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" }
+      { "slideId": "1", "prompt": "PROMPT (slide 1 — uses logo)", "inputImages": ["<ref>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" },
+      { "slideId": "2", "prompt": "PROMPT (middle slide — handle only)", "inputImages": ["<ref>"], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" },
+      { "slideId": "N", "prompt": "PROMPT (last slide — uses logo)", "inputImages": ["<ref>"${brand.logoPath ? `, "${brand.logoPath}"` : ""}], "aspectRatio": "${carousel?.aspectRatio || "4:5"}", "resolution": "1K", "carouselId": "${carousel?.id || "{ID}"}" }
     ]
   }'
+
+⚠️ Note the inputImages difference: slides 1 and N include the logo path as the second
+input; middle slides include ONLY the reference. This is what controls the logo-vs-handle
+rendering.
 
 Returns {"results": [{slideId, ok, path, taskId, creditsUsed, balanceAfter, error?}, ...]}.
 Total time ≈ time of the slowest single slide (~60-90s) instead of sum (~5-8 min).
@@ -241,15 +246,19 @@ curl -s -X POST http://localhost:3000/api/generate-image \\
     "carouselId": "${carousel?.id || "{ID}"}"
   }'
 
-${brand.logoPath ? `IMPORTANT — TWO INPUT IMAGES ALWAYS:
-- IMAGE 1 = the reference (design DNA — palette, type, mood, motif, layout)
-- IMAGE 2 = the user's logo at "${brand.logoPath}" (must appear unchanged in the brand position of every slide, do not redesign it)
-In the prompt, explicitly tell the model: "use IMAGE 2 as the brand logo, place it in the brand position the reference uses, keep it pixel-faithful, do not stylize or recolor it".` : `No logo file uploaded — render the brand name "${brand.name || "[no name]"}" as a clean typographic wordmark in the brand position using the design_system typography.`}
+${brand.logoPath ? `BRAND POSITION RULE — DIFFERENT FOR FIRST/LAST vs MIDDLE SLIDES:
 
-Whether logo is present or not, ALSO render every social handle from
-brand_identity.social_handles_to_show as small text near the brand position
-(e.g. Instagram handle below the logo, website below that). Use the design_system
-typography in a small size (~16-22px).
+▸ FIRST SLIDE (slide 1, the hook) AND LAST SLIDE (slide N, the CTA):
+  - inputImages = [reference, "${brand.logoPath}"] — pass the LOGO as IMAGE 2
+  - In the prompt say: "use IMAGE 2 as the brand logo in the brand position, pixel-faithful, do not stylize or recolor"
+  - Also render the social handles as small text under or beside the logo
+
+▸ MIDDLE SLIDES (slides 2 through N-1):
+  - inputImages = [reference] ONLY — DO NOT pass the logo
+  - In the prompt say: "in the brand position, render only the social handle '${socials.instagram || brand.name || ""}' as clean text in the design_system typography (~22-28px). No logo glyph."
+  - This keeps middle slides cleaner and the brand mark feels more intentional on the bookend slides.
+
+This rule is non-negotiable — the user explicitly wants logo only on first and last.` : `No logo file uploaded — every slide renders the social handle "${socials.instagram || brand.name || "[no handle]"}" as a clean wordmark in the brand position using the design_system typography.`}
 
 The response now includes "creditsUsed" and "balanceAfter" — mention them to the user after
 each slide so they see real-time spend (e.g. "Slide 3 listo · 45 créditos · balance 882").
