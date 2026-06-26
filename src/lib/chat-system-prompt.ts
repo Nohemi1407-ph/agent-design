@@ -113,16 +113,56 @@ curl -s -X POST http://localhost:3000/api/generate-image \\
     "prompt": "FULL PROMPT (see below)",
     "inputImages": ["<reference image absPath converted to /uploads/... path>"],
     "aspectRatio": "${carousel?.aspectRatio || "4:5"}",
-    "resolution": "2K"
+    "resolution": "1K"
   }'
 
-The prompt for each slide must include:
-- The full design JSON pasted inline (so the model has the contract)
-- The slide's CONTENT block (TOP TEXT, EYEBROW, MASSIVE TEXT, BODY, BOTTOM PHRASE)
-- The central motif adapted to this slide's topic (e.g. slide about "automation" → robot/gear; slide about "growth" → ascending bars)
-- Explicit instruction: "Render TEXT exactly as written, no hyphenation, words never split across lines"
-- "Match the reference's visual density and finish quality. Indistinguishable from a premium agency post."
-- "Stop the scroll in under 1 second."
+CREDIT EFFICIENCY: Always use "1K" (Instagram displays 1080px max — 2K is wasted credit).
+Only use "2K" if the user explicitly asks for "high res" or "print quality".
+
+The prompt for each slide MUST include the following 4 blocks (in this exact order):
+
+BLOCK 1 — DESIGN JSON (the locked contract):
+Paste the full design JSON inline.
+
+BLOCK 2 — SAFE ZONES (in pixels, based on the carousel's ${dimensions.width}x${dimensions.height} canvas):
+\`\`\`
+CANVAS: ${dimensions.width} x ${dimensions.height} px
+OUTER PADDING (untouchable): 80px from every edge
+SAFE CONTENT AREA: ${dimensions.width - 160} x ${dimensions.height - 160} px (centered)
+TEXT BOX MAX WIDTH: ${dimensions.width - 160} px — every text line MUST fit within this width
+INSTAGRAM CROP-SAFE CENTER: keep critical text and faces within central 80% (margin ~108px all sides)
+
+TEXT SIZE RULES (based on word length to guarantee single-line fit):
+- MASSIVE TEXT, longest word ≤ 6 chars  → 140-180px font
+- MASSIVE TEXT, longest word 7-9 chars  → 100-130px font
+- MASSIVE TEXT, longest word 10-12 chars → 70-95px font
+- MASSIVE TEXT, longest word 13+ chars  → 55-70px font OR split phrase into 2 short lines at the natural word boundary
+- EYEBROW: 14-18px, uppercase, +0.15em tracking
+- BODY: 22-28px, line-height 1.4
+- BOTTOM PHRASE: 28-36px
+
+HARD RULES:
+- Every word renders WHOLE on ONE line. NEVER hyphenate. NEVER split a word.
+- No text touches the outer 80px padding.
+- Headlines align to ONE alignment system (use the design JSON's layout.alignment).
+- Maintain consistent baseline rhythm across all slides.
+\`\`\`
+
+BLOCK 3 — SLIDE CONTENT (exact text the model must render):
+EYEBROW: "[text or omit]"
+MASSIVE TEXT: "[2-5 words — measure longest word, pick the right size band above]"
+BODY: "[text or omit]"
+BOTTOM PHRASE: "[CTA or omit]"
+SLIDE NUMBER: "[NN / NN if the JSON's layout.slide_number_position is set]"
+
+BLOCK 4 — CENTRAL MOTIF (adapted per slide):
+Describe the topic-native hero visual that replaces the reference's central element.
+Match the JSON's decorations.central_motif style and lighting exactly.
+
+QUALITY STANDARDS appended at the end of every prompt:
+"Match the reference's visual density and finish quality. Stop the scroll in under 1 second.
+Premium agency look. All text perfectly legible, no broken words, no overflow.
+Lighting and palette identical to the reference."
 
 Returns {"path": "/uploads/xxx.png"}. Use that path as the slide HTML — which is ONLY this:
 <img src="/uploads/xxx.png" style="width:100%;height:100%;object-fit:cover;display:block;" />
@@ -132,14 +172,21 @@ curl -s -X POST http://localhost:3000/api/carousels/${carousel?.id || "{ID}"}/sl
   -H "Content-Type: application/json" \\
   -d '{"html": "<img src=\\"/uploads/xxx.png\\" style=\\"width:100%;height:100%;object-fit:cover;display:block;\\" />", "notes": "Slide N — short description"}'
 
-### STEP E — Verify the result
-Use Read on the generated PNG. Check:
-- Face fidelity (if avatar/people involved)
-- Text legibility — NO hyphenated words, NO split words across lines
-- Visual density matches slide 1
-- Style matches the design JSON
+### STEP E — Verify the result (credit-efficient)
+Use Read on the generated PNG. Check ONLY these critical failures:
+- Words hyphenated or split across lines → regenerate
+- Text touches or crosses the 80px outer padding → regenerate
+- MASSIVE TEXT illegible (low contrast / overflow) → regenerate
+- Reference style clearly broken (wrong palette, wrong motif) → regenerate
 
-If any check fails, regenerate ONCE with an explicit correction in the prompt.
+DO NOT regenerate for:
+- Minor decorative differences
+- Slightly different shadow / lighting nuances
+- Anything subjective the user can ask to refine later
+
+CREDIT BUDGET: Maximum ONE regeneration per slide. If the second attempt still fails,
+SAVE IT AS IS and tell the user in chat what looked off — let them decide whether to retry.
+This prevents runaway credit consumption.
 
 ### STEP F — Repeat for all slides
 Use the SAME design JSON and SAME reference image for every slide.
@@ -160,7 +207,7 @@ The carousel must feel like one unified campaign — same designer hand througho
 ## Slide dimensions
 - ${carousel?.aspectRatio || "4:5"} = ${dimensions.width}x${dimensions.height}px
 - Always pass aspectRatio "${carousel?.aspectRatio || "4:5"}" to /api/generate-image
-- resolution always "2K"
+- resolution always "1K" (Instagram displays 1080px max)
 
 ## Caption & hashtag generation
 After all slides are created, offer to generate:

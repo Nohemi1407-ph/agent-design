@@ -88,12 +88,14 @@ export async function POST(request: NextRequest) {
     body.aspectRatio && VALID_RATIOS.has(body.aspectRatio)
       ? body.aspectRatio
       : "auto";
+  // Credit optimization: default to 1K (Instagram only needs 1080px).
+  // Caller must explicitly opt-in to 2K/4K when truly needed.
   const supportsHighRes = aspectRatio !== "auto" && aspectRatio !== "1:1";
   const resolution = !supportsHighRes
     ? "1K"
     : body.resolution && ["1K", "2K", "4K"].includes(body.resolution)
       ? body.resolution
-      : "2K";
+      : "1K";
 
   const rawInputs = Array.isArray(body.inputImages)
     ? body.inputImages.filter((s) => typeof s === "string" && s.trim()).slice(0, MAX_INPUT_IMAGES)
