@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Settings, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CreditsBadge } from "./CreditsBadge";
 
 interface TopBarProps {
   title?: string;
@@ -82,6 +83,7 @@ export function TopBar({
         )}
       </div>
       <div className="flex-1" />
+      <CreditsBadge />
       {onSettingsClick && (
         <Button
           variant="ghost"

@@ -36,7 +36,7 @@ Antes de empezar necesitas tener instalado en tu computadora:
 
 ### 1. Clona el repositorio
 ```bash
-git clone <URL-del-repo> agent-design
+git clone https://github.com/Nohemi1407-ph/agent-design.git
 cd agent-design
 ```
 
@@ -45,17 +45,45 @@ cd agent-design
 npm install
 ```
 
-### 3. Levanta el servidor de desarrollo
+### 3. Configura tu API key (opcional pero recomendado)
+
+Para que el AI genere imágenes con GPT Image-2 necesitas una API key de [kie.ai](https://kie.ai):
+
+```bash
+cp .env.example .env.local
+```
+
+Abre `.env.local` y pega tu key:
+```
+KIE_API_KEY=tu_api_key_aqui
+```
+
+> ⚠️ **Sin esta key la app funciona pero sin generación de imágenes IA** — solo modo HTML/CSS.
+
+### 4. Levanta el servidor de desarrollo
 ```bash
 npm run dev
 ```
 
-### 4. Abre el navegador
+### 5. Abre el navegador
 ```
 http://localhost:3000
 ```
 
-La primera vez te pedirá configurar tu marca (nombre, colores, fuentes). Después podrás crear tu primer carrusel.
+La primera vez te pedirá configurar tu marca (nombre, colores, fuentes, Instagram). Después podrás crear tu primer carrusel.
+
+---
+
+## 🔄 Cómo actualizar a la última versión
+
+Si ya tienes el repo clonado y quieres traer los cambios nuevos:
+
+```bash
+cd agent-design
+git pull
+npm install         # solo si cambió package.json
+npm run dev
+```
 
 ---
 

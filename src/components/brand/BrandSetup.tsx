@@ -29,7 +29,7 @@ const STYLE_OPTIONS = [
   "professional",
 ];
 
-const STEPS = ["Brand Name", "Colors", "Fonts", "Logo", "Style"];
+const STEPS = ["Brand Name", "Socials", "Colors", "Fonts", "Logo", "Style"];
 
 export function BrandSetup({ open, onComplete, initialBrand }: BrandSetupProps) {
   const [step, setStep] = useState(0);
@@ -138,6 +138,72 @@ export function BrandSetup({ open, onComplete, initialBrand }: BrandSetupProps) 
 
           {step === 1 && (
             <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">Instagram handle</label>
+                <Input
+                  value={brand.socials?.instagram || ""}
+                  onChange={(e) =>
+                    setBrand({
+                      ...brand,
+                      socials: { ...(brand.socials || {}), instagram: e.target.value },
+                    })
+                  }
+                  placeholder="@yourhandle"
+                  className="mt-2"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Website</label>
+                <Input
+                  value={brand.socials?.website || ""}
+                  onChange={(e) =>
+                    setBrand({
+                      ...brand,
+                      socials: { ...(brand.socials || {}), website: e.target.value },
+                    })
+                  }
+                  placeholder="yourbrand.com"
+                  className="mt-2"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">TikTok</label>
+                  <Input
+                    value={brand.socials?.tiktok || ""}
+                    onChange={(e) =>
+                      setBrand({
+                        ...brand,
+                        socials: { ...(brand.socials || {}), tiktok: e.target.value },
+                      })
+                    }
+                    placeholder="@yourhandle"
+                    className="mt-2"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">YouTube</label>
+                  <Input
+                    value={brand.socials?.youtube || ""}
+                    onChange={(e) =>
+                      setBrand({
+                        ...brand,
+                        socials: { ...(brand.socials || {}), youtube: e.target.value },
+                      })
+                    }
+                    placeholder="@yourhandle"
+                    className="mt-2"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Optional — the AI will use these in the brand position of every slide.
+              </p>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-3">
               <ColorPicker
                 label="Primary"
                 value={brand.colors.primary}
@@ -191,7 +257,7 @@ export function BrandSetup({ open, onComplete, initialBrand }: BrandSetupProps) 
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="space-y-4">
               <FontSelector
                 label="Heading Font"
@@ -216,14 +282,14 @@ export function BrandSetup({ open, onComplete, initialBrand }: BrandSetupProps) 
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <LogoUpload
               value={brand.logoPath}
               onChange={(path) => setBrand({ ...brand, logoPath: path })}
             />
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div>
               <label className="text-sm font-medium">
                 Choose your brand style
