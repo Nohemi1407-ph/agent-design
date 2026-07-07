@@ -43,7 +43,11 @@ export function CreditsBadge() {
 
     return () => {
       cancelled = true;
-      controller.abort();
+      try {
+        controller.abort(new DOMException("CreditsBadge unmounted", "AbortError"));
+      } catch {
+        // ignore — abort can only fail if already aborted
+      }
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };
