@@ -103,7 +103,7 @@ YOU MUST parse these from the message. NEVER ask "¿cuál es el tema?" or "¿de 
 
 ### Single-slide mode (count = 1):
 When count = 1, everything fits in ONE image:
-- Pose: use `frontal_hero` (magnetic front-facing) — the invitation gesture is folded into the CTA text overlay
+- Pose: use frontal_hero (magnetic front-facing) — the invitation gesture is folded into the CTA text overlay
 - Logo bookend: this ONE slide gets the logo (it's both first and last)
 - Batch call: send ONE entry in the slides array — the batch endpoint accepts 1-10 slides
 - Content: hook + key insight + CTA all composed into a single frame with strong hierarchy
