@@ -103,6 +103,13 @@ export function ChatPanel({
 
       abortRef.current = new AbortController();
 
+      // Send the last 12 messages (6 user + 6 assistant turns) so the AI
+      // always has topic + count + CTA even if the CLI session drops context.
+      const historyForApi = messages.slice(-12).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
       try {
         const response = await fetch("/api/chat", {
           method: "POST",
@@ -111,6 +118,7 @@ export function ChatPanel({
             message,
             sessionId,
             carouselId,
+            history: historyForApi,
           }),
           signal: abortRef.current.signal,
         });

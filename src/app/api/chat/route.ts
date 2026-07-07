@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     sessionId?: string;
     carouselId?: string;
     stylePresetId?: string;
+    history?: { role: "user" | "assistant"; content: string }[];
   };
   try {
     body = await request.json();
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { message, sessionId, carouselId, stylePresetId } = body;
+  const { message, sessionId, carouselId, stylePresetId, history } = body;
 
   if (
     !message ||
@@ -49,7 +50,20 @@ export async function POST(request: NextRequest) {
   const brand = await getBrand();
   const carousel = carouselId ? await getCarousel(carouselId) : null;
   const stylePreset = stylePresetId ? await getPreset(stylePresetId) : null;
-  const systemPrompt = buildSystemPrompt(brand, carousel, stylePreset);
+  let systemPrompt = buildSystemPrompt(brand, carousel, stylePreset);
+
+  // Embed conversation history so context is never lost, even if the CLI
+  // session drops the earlier turns during compaction.
+  if (Array.isArray(history) && history.length > 0) {
+    const historyText = history
+      .filter((m) => m.content && m.content.trim())
+      .map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.content.slice(0, 2000)}`)
+      .join("\n\n");
+
+    if (historyText) {
+      systemPrompt += `\n\n## CONVERSATION SO FAR (context — always use this)\n${historyText}\n\n## CURRENT USER MESSAGE\n${message}\n\nIMPORTANT: The user's TOPIC, SLIDE COUNT, and CTA (if given) are all in the CONVERSATION SO FAR above. Look there before asking anything. Never say "no memory" or "fresh conversation" — the context is right above.`;
+    }
+  }
 
   const claudePath = getClaudePath();
   const abortController = new AbortController();
