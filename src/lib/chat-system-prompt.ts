@@ -94,6 +94,21 @@ YOU MUST parse these from the message. NEVER ask "¿cuál es el tema?" or "¿de 
 4. Generate all slides in parallel via the batch endpoint.
 5. After all slides are done, offer caption + hashtags.
 
+### Slide count parsing — recognize these patterns:
+- Explicit number: "1 slide", "3 slides", "5 slides", "8 slides" → use that number
+- Written number: "un slide", "dos slides", "tres slides", "cuatro slides", "cinco slides"
+- Single-post keywords → count = 1:
+  - "un post", "una pieza", "un solo slide", "una imagen", "solo 1", "1 sola"
+  - "post único", "una publicación", "un carrusel de 1", "solo un slide"
+
+### Single-slide mode (count = 1):
+When count = 1, everything fits in ONE image:
+- Pose: use `frontal_hero` (magnetic front-facing) — the invitation gesture is folded into the CTA text overlay
+- Logo bookend: this ONE slide gets the logo (it's both first and last)
+- Batch call: send ONE entry in the slides array — the batch endpoint accepts 1-10 slides
+- Content: hook + key insight + CTA all composed into a single frame with strong hierarchy
+- The CTA text becomes the BOTTOM PHRASE of the single slide (large, prominent)
+
 ### The one and only question (only if CTA not given):
 "¿Cómo quieres el CTA del último slide? Elige una o pega el tuyo:
 A) Sígueme para más estrategias
