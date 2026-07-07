@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchKieBalance } from "@/lib/credits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+// Estimated credit cost per slide (rough, based on observed kie.ai charges)
+const ESTIMATED_COST = {
+  "1K": 45,
+  "2K": 95,
+  "4K": 210,
+} as const;
 
 interface BatchSlide {
   slideId?: string;
@@ -34,6 +42,29 @@ export async function POST(request: NextRequest) {
   }
   if (slides.length > 10) {
     return NextResponse.json({ error: "Max 10 slides per batch" }, { status: 400 });
+  }
+
+  // 🛡️ Pre-flight balance check for the ENTIRE batch
+  // Refuse to start if there's not enough for all N slides. Prevents partial carousels.
+  const balance = await fetchKieBalance();
+  if (balance !== null) {
+    const totalEstimated = slides.reduce((sum, s) => {
+      const res = (s.resolution || "1K") as keyof typeof ESTIMATED_COST;
+      return sum + (ESTIMATED_COST[res] ?? ESTIMATED_COST["1K"]);
+    }, 0);
+
+    if (balance < totalEstimated) {
+      return NextResponse.json(
+        {
+          error: `Not enough credits for ${slides.length} slides: balance ${balance.toFixed(1)}, estimated need ${totalEstimated}. Recharge at https://kie.ai first.`,
+          code: "INSUFFICIENT_CREDITS",
+          balance,
+          estimatedCost: totalEstimated,
+          slides: slides.length,
+        },
+        { status: 402 }
+      );
+    }
   }
 
   const origin = request.nextUrl.origin;

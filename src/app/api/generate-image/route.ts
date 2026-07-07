@@ -14,6 +14,11 @@ const KIE_FILE_UPLOAD = "https://kieai.redpandaai.co/api/file-base64-upload";
 const POLL_TIMEOUT_MS = 180_000;
 const MAX_INPUT_IMAGES = 16;
 
+// Credit safety thresholds — refuse to start a task if balance is too low
+const MIN_CREDITS_FOR_1K = 40;   // typical 1K image-to-image cost is ~35-45 credits
+const MIN_CREDITS_FOR_2K = 90;
+const MIN_CREDITS_FOR_4K = 200;
+
 // Adaptive polling: fast at the start (jobs often finish quickly),
 // back off after the typical generation window
 function nextPollInterval(elapsedMs: number): number {
@@ -161,8 +166,25 @@ export async function POST(request: NextRequest) {
   };
   if (isImageToImage) input.input_urls = inputUrls;
 
-  // Snapshot balance BEFORE generation to compute the real credit cost after.
+  // 🛡️ SAFETY 1 — Pre-flight balance check.
+  // Refuse to create the task if balance can't cover it. Prevents partial charges.
   const balanceBefore = await fetchKieBalance();
+  const minRequired =
+    resolution === "4K" ? MIN_CREDITS_FOR_4K :
+    resolution === "2K" ? MIN_CREDITS_FOR_2K :
+    MIN_CREDITS_FOR_1K;
+
+  if (balanceBefore !== null && balanceBefore < minRequired) {
+    return NextResponse.json(
+      {
+        error: `Insufficient credits: you have ${balanceBefore.toFixed(1)} credits, minimum ${minRequired} required for ${resolution} generation. Recharge at https://kie.ai before continuing.`,
+        code: "INSUFFICIENT_CREDITS",
+        balance: balanceBefore,
+        required: minRequired,
+      },
+      { status: 402 }
+    );
+  }
 
   const createRes = await fetch(`${KIE_BASE}/api/v1/jobs/createTask`, {
     method: "POST",
@@ -214,17 +236,50 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // 🛡️ SAFETY 2 — On timeout or failure AFTER credits may have been charged,
+  // log the taskId so the user can recover the image manually from kie.ai.
+  const logFailedAttempt = async (reason: string) => {
+    const balanceNow = await fetchKieBalance();
+    const spent =
+      balanceBefore !== null && balanceNow !== null
+        ? Math.max(0, balanceBefore - balanceNow)
+        : 0;
+    if (spent > 0) {
+      await logUsage({
+        taskId,
+        mode: isImageToImage ? "image-to-image" : "text-to-image",
+        resolution,
+        aspectRatio,
+        creditsUsed: spent,
+        carouselId: body.carouselId,
+        createdAt: now(),
+      });
+    }
+    return { taskId, reason, creditsCharged: spent, balanceAfter: balanceNow };
+  };
+
   if (!imageUrl) {
+    const failInfo = await logFailedAttempt("timeout");
     return NextResponse.json(
-      { error: "Image generation timed out" },
+      {
+        error: `Image generation timed out. Task ID: ${taskId}. If credits were charged, you can retry fetching the result from kie.ai directly with this taskId.`,
+        code: "TIMEOUT",
+        ...failInfo,
+      },
       { status: 504 }
     );
   }
 
   const imgRes = await fetch(imageUrl);
   if (!imgRes.ok) {
+    const failInfo = await logFailedAttempt("download_failed");
     return NextResponse.json(
-      { error: "Failed to download generated image" },
+      {
+        error: `Task succeeded but download failed. The image is at ${imageUrl}. Task ID: ${taskId}.`,
+        code: "DOWNLOAD_FAILED",
+        remoteUrl: imageUrl,
+        ...failInfo,
+      },
       { status: 502 }
     );
   }
