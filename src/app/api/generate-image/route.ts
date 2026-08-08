@@ -4,6 +4,9 @@ import path from "path";
 import crypto from "crypto";
 import { fetchKieBalance, logUsage } from "@/lib/credits";
 import { now } from "@/lib/utils";
+import { auth } from "@/auth";
+import { getBalance, recordTx } from "@/lib/credits-ledger";
+import { SLIDE_COST } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,8 +169,27 @@ export async function POST(request: NextRequest) {
   };
   if (isImageToImage) input.input_urls = inputUrls;
 
-  // 🛡️ SAFETY 1 — Pre-flight balance check.
-  // Refuse to create the task if balance can't cover it. Prevents partial charges.
+  // 🛡️ SAFETY 1 — USER-level pre-flight: check the logged-in user's internal credit balance.
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const userId = session.user.id;
+  const slideCost = SLIDE_COST[resolution as keyof typeof SLIDE_COST] ?? SLIDE_COST["1K"];
+  const userBalance = await getBalance(userId);
+  if (userBalance < slideCost) {
+    return NextResponse.json(
+      {
+        error: `Créditos insuficientes: tienes ${userBalance}, este slide cuesta ${slideCost} créditos. Compra más créditos para continuar.`,
+        code: "INSUFFICIENT_CREDITS",
+        balance: userBalance,
+        required: slideCost,
+      },
+      { status: 402 }
+    );
+  }
+
+  // 🛡️ SAFETY 2 — MASTER-level check: does Nohemi's kie.ai account have enough?
   const balanceBefore = await fetchKieBalance();
   const minRequired =
     resolution === "4K" ? MIN_CREDITS_FOR_4K :
@@ -177,12 +199,10 @@ export async function POST(request: NextRequest) {
   if (balanceBefore !== null && balanceBefore < minRequired) {
     return NextResponse.json(
       {
-        error: `Insufficient credits: you have ${balanceBefore.toFixed(1)} credits, minimum ${minRequired} required for ${resolution} generation. Recharge at https://kie.ai before continuing.`,
-        code: "INSUFFICIENT_CREDITS",
-        balance: balanceBefore,
-        required: minRequired,
+        error: `The platform is temporarily out of generation capacity. Please try again in a few minutes.`,
+        code: "SERVICE_UNAVAILABLE",
       },
-      { status: 402 }
+      { status: 503 }
     );
   }
 
@@ -308,11 +328,24 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // 💳 Charge the user's internal ledger the fixed slide cost
+  // (regardless of what kie.ai actually charged us — that variance is our margin)
+  const userTx = await recordTx({
+    userId,
+    type: "USAGE",
+    amount: -slideCost,
+    reason: `Slide ${resolution} · ${isImageToImage ? "image-to-image" : "text-to-image"}`,
+    taskId,
+    carouselId: body.carouselId,
+  });
+
   return NextResponse.json({
     path: `/uploads/${filename}`,
     taskId,
     mode: isImageToImage ? "image-to-image" : "text-to-image",
-    creditsUsed,
-    balanceAfter,
+    creditsUsed,          // kie.ai credits (internal metric)
+    balanceAfter,         // kie.ai balance (admin-only interest)
+    userCreditsCharged: slideCost,
+    userBalanceAfter: userTx.balanceAfter,
   });
 }

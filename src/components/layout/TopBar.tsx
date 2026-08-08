@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Settings, Zap } from "lucide-react";
+import { ArrowLeft, Settings, Zap, Shield, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "./CreditsBadge";
+import { UserMenu } from "./UserMenu";
 
 interface TopBarProps {
   title?: string;
@@ -94,6 +95,7 @@ export function TopBar({
           <Settings className="h-4 w-4" />
         </Button>
       )}
+      <UserMenu />
     </header>
   );
 }

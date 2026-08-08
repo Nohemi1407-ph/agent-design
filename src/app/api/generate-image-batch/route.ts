@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchKieBalance } from "@/lib/credits";
+import { auth } from "@/auth";
+import { getBalance } from "@/lib/credits-ledger";
+import { SLIDE_COST } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-// Estimated credit cost per slide (rough, based on observed kie.ai charges)
-const ESTIMATED_COST = {
+// Kie.ai internal cost per slide (admin-facing, for capacity checks)
+const ESTIMATED_KIE_COST = {
   "1K": 45,
   "2K": 95,
   "4K": 210,
@@ -44,25 +47,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Max 10 slides per batch" }, { status: 400 });
   }
 
-  // 🛡️ Pre-flight balance check for the ENTIRE batch
-  // Refuse to start if there's not enough for all N slides. Prevents partial carousels.
+  // 🛡️ USER-level pre-flight: does the logged-in user have enough internal credits?
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const userId = session.user.id;
+  const totalUserCost = slides.reduce((sum, s) => {
+    const res = (s.resolution || "1K") as keyof typeof SLIDE_COST;
+    return sum + (SLIDE_COST[res] ?? SLIDE_COST["1K"]);
+  }, 0);
+  const userBalance = await getBalance(userId);
+  if (userBalance < totalUserCost) {
+    return NextResponse.json(
+      {
+        error: `Créditos insuficientes: tienes ${userBalance}, este carrusel de ${slides.length} slides cuesta ${totalUserCost} créditos.`,
+        code: "INSUFFICIENT_CREDITS",
+        balance: userBalance,
+        required: totalUserCost,
+      },
+      { status: 402 }
+    );
+  }
+
+  // 🛡️ MASTER-level pre-flight on kie.ai capacity
   const balance = await fetchKieBalance();
   if (balance !== null) {
     const totalEstimated = slides.reduce((sum, s) => {
-      const res = (s.resolution || "1K") as keyof typeof ESTIMATED_COST;
-      return sum + (ESTIMATED_COST[res] ?? ESTIMATED_COST["1K"]);
+      const res = (s.resolution || "1K") as keyof typeof ESTIMATED_KIE_COST;
+      return sum + (ESTIMATED_KIE_COST[res] ?? ESTIMATED_KIE_COST["1K"]);
     }, 0);
 
     if (balance < totalEstimated) {
       return NextResponse.json(
         {
-          error: `Not enough credits for ${slides.length} slides: balance ${balance.toFixed(1)}, estimated need ${totalEstimated}. Recharge at https://kie.ai first.`,
-          code: "INSUFFICIENT_CREDITS",
-          balance,
-          estimatedCost: totalEstimated,
-          slides: slides.length,
+          error: `La plataforma está temporalmente sin capacidad. Reintenta en unos minutos.`,
+          code: "SERVICE_UNAVAILABLE",
         },
-        { status: 402 }
+        { status: 503 }
       );
     }
   }

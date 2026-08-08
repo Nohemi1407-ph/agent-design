@@ -10,7 +10,7 @@ interface CreditsState {
   enabled: boolean;
 }
 
-const LOW_BALANCE_THRESHOLD = 50;
+const LOW_BALANCE_THRESHOLD = 20;
 
 export function CreditsBadge() {
   const [state, setState] = useState<CreditsState | null>(null);
@@ -77,7 +77,7 @@ export function CreditsBadge() {
       <span className="opacity-70">créditos</span>
       {state.today > 0 && (
         <span className="opacity-60 border-l border-current/20 pl-2 ml-1">
-          −{state.today.toFixed(1)} hoy
+          −{state.today.toLocaleString()} hoy
         </span>
       )}
     </div>

@@ -1,0 +1,148 @@
+// Agent Design — multi-tenant SaaS schema
+// - Every domain row is scoped by userId (except User itself)
+// - Nohemi (role=ADMIN) can see and adjust everyone
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum CreditTxType {
+  GRANT       // admin gave credits
+  PURCHASE    // user bought a package
+  USAGE       // spent on a generation
+  REFUND      // reverted usage
+  ADJUSTMENT  // manual admin fix (can be positive or negative)
+}
+
+// -------- Auth --------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  role          Role      @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // User's own Anthropic API key (encrypted)
+  anthropicKey  String?
+
+  // Relations
+  accounts       Account[]
+  sessions       Session[]
+  brand          Brand?
+  carousels      Carousel[]
+  creditTxs      CreditTx[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+// -------- App domain --------
+
+model Brand {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  name          String   @default("")
+  colors        Json     @default("{}")
+  fonts         Json     @default("{}")
+  logoPath      String?
+  styleKeywords String[] @default([])
+  socials       Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Carousel {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  aspectRatio     String   // "1:1" | "4:5" | "9:16"
+  chatSessionId   String?
+  isTemplate      Boolean  @default(false)
+  tags            String[] @default([])
+  caption         String?
+  hashtags        String[] @default([])
+  referenceImages Json     @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slides Slide[]
+
+  @@index([userId, updatedAt])
+}
+
+model Slide {
+  id                String   @id @default(cuid())
+  carouselId        String
+  order             Int
+  html              String   @db.Text
+  notes             String   @default("")
+  previousVersions  String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  carousel Carousel @relation(fields: [carouselId], references: [id], onDelete: Cascade)
+  @@index([carouselId, order])
+}
+
+// -------- Credit ledger --------
+
+model CreditTx {
+  id          String       @id @default(cuid())
+  userId      String
+  type        CreditTxType
+  amount      Int          // positive = credit added; negative = spent/removed
+  balanceAfter Int         // running balance snapshot for this user
+  reason      String       @default("")
+  taskId      String?      // kie.ai task id when type=USAGE
+  carouselId  String?
+  createdAt   DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt])
+}
