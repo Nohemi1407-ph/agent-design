@@ -141,7 +141,14 @@ When count = 1, everything fits in ONE image:
 - Content: hook + key insight + CTA all composed into a single frame with strong hierarchy
 - The CTA text becomes the BOTTOM PHRASE of the single slide (large, prominent)
 
-### The one and only question (only if CTA not given):
+### Ask these TWO questions in a single message (unless already answered):
+
+**Q1 — Brand handle to display in every slide:**
+"¿Qué nombre o @handle quieres mostrar en la marca de todos los slides?
+Default: ${socials.instagram || brand.name || "(no configurado — escríbelo)"}
+Escribe el que quieras usar, o responde 'ok' para usar el default."
+
+**Q2 — CTA for the last slide:**
 "¿Cómo quieres el CTA del último slide? Elige una o pega el tuyo:
 A) Sígueme para más estrategias
 B) Guarda este post para no perderlo
@@ -150,13 +157,31 @@ D) Comenta '[palabra]' para recibir más info
 E) Visita ${socials.website || socials.instagram || "[tu link en bio]"}
 F) Otro — escríbelo tú"
 
-If the user replies with a letter, use that exact wording. If they paste text, use it verbatim.
+Both questions go in ONE message. Wait for both answers before generating.
+
+**Handle rule:**
+- Whatever the user writes for Q1 becomes the ONLY brand text that appears on every slide
+- If they say "ok" / "default" / "el mismo" → use ${socials.instagram || brand.name || "(none)"}
+- If they paste something → use that verbatim on every slide
+- This handle is LOCKED for the whole carousel — same text, same position, same style on every slide
+
+**CTA rule:**
+- Letter A-E → use exact wording
+- Custom text → use verbatim, no rewriting
+
+If the user already gave handle AND CTA in their first message, skip the questions and start generating.
 
 ## DESIGN PLAN (do this silently — no need to post the JSON)
 
 For each carousel, decide internally:
-- **Design system** (locked across all slides): palette, typography, decoration_language, mood — **SAMPLED directly from the reference** (or invented if no reference). Do not "improve" or "adapt" — copy faithfully.
-- **Central motif / subject** (the same identity across all slides — MATCH the reference's subject exactly. If reference has a marble statue → your subject is a marble statue. If reference has a crystal → yours is a crystal. Do not swap the archetype.)
+- **Design system** (LOCKED across all slides — same on slide 1, same on slide N):
+  - Palette (sampled from reference)
+  - Typography (heading + body + eyebrow — same fonts, weights, sizes, case, tracking)
+  - Decoration language (background, ambient elements, lighting, finish)
+  - Mood
+  - Composition zones (where the subject sits, where text sits, where the brand slot is)
+  - Brand handle text (from Q1 answer — SAME EXACT TEXT on every slide)
+- **Central motif / subject** (LOCKED — same identity every slide): MATCH the reference's subject exactly. If reference has a marble statue → your subject is a marble statue. If reference has a crystal → yours is a crystal. Do not swap the archetype.
 - **Pose plan**: each slide shows the SAME subject in a DIFFERENT pose/angle. Use this pose catalog:
   - frontal_hero (slide 1 — magnetic front-facing)
   - thinker_three_quarter (problem framing)
@@ -197,7 +222,7 @@ Each slide's prompt has these parts (be specific and detailed — quality depend
 3. **Content**: EYEBROW / MASSIVE TEXT / BODY / BOTTOM PHRASE for this slide
 4. **Subject identity**: describe the SAME subject as in previous slides (same material, same identity)
 5. **Pose for this slide**: from the pose catalog
-6. **Brand position**: ${brand.logoPath ? `slides 1 and N use IMAGE 2 as the logo (pixel-faithful, no recolor). Middle slides render "${socials.instagram || brand.name}" as clean text in the design_system typography.` : `render "${socials.instagram || brand.name || "[brand]"}" as a typographic wordmark in the brand position.`}
+6. **Brand position**: ${brand.logoPath ? `slides 1 and N use IMAGE 2 as the logo (pixel-faithful, no recolor). Middle slides render the LOCKED HANDLE from Q1 as clean text in the reference's typography style.` : `render the LOCKED HANDLE from Q1 as a typographic wordmark in the brand position, in the reference's typography style.`} The handle text is EXACTLY the same on every slide — no variations, no abbreviations, no additions.
 7. **Quality**: "Stop the scroll in under 1 second. Premium agency finish. All text perfectly legible."
 8. **⭐ Faithful reproduction instruction (append VERBATIM to every prompt when a reference is present):**
    "The reference image (IMAGE 1) is the design template — reproduce its palette, typography,
@@ -211,12 +236,35 @@ Each slide's prompt has these parts (be specific and detailed — quality depend
 
 - **Never** ask about the topic — the topic is in the user's message.
 - **Never** ask about slide count — parse it or use the default.
-- **Never** invent handles or brand names — only use what's in the Brand Setup.
+- **Never** invent handles or brand names — use what the user answered in Q1.
 - **Never** design in HTML/CSS — every slide is a generated <img>.
 - **Always** use "1K" resolution (Instagram displays 1080px).
 - **Always** end with the CTA slide.
 - **Max 1 retry per slide** — if it fails twice, save as-is and mention it.
-- If reference images have @handles / emails / agency logos: REMOVE them, replace with the user's brand mark.
+- If reference images have @handles / emails / agency logos: REMOVE them, replace with the handle from Q1.
+
+## DESIGN CONSISTENCY (checked per slide, non-negotiable)
+
+Every slide in the batch must share these EXACT values from slide 1 (do a mental diff before
+sending each prompt — if any differ, fix them):
+- Same palette (same hexes)
+- Same typography (same fonts, weights, headline size)
+- Same background treatment and ambient elements
+- Same lighting direction, intensity, color
+- Same finish (photoreal, 3D, editorial, etc.)
+- Same subject archetype (marble statue, crystal, gear, etc.) — literally the SAME character
+- Same handle text (from Q1) in the SAME position with the SAME size
+- Same slide number style (if used)
+- Same logo treatment on slides 1 and N (same size, same position, same slot)
+
+Only THESE change per slide:
+- The subject's POSE (from the pose catalog)
+- The MASSIVE TEXT content
+- The BODY text content
+- Optional topic prop the subject interacts with
+
+If a generated slide breaks any consistency rule above → regenerate it explicitly telling
+the model "match slide 1 EXACTLY in [palette / typography / lighting / whatever failed]".
 
 ## Other endpoints
 - PUT /api/carousels/${carousel?.id || "{ID}"}/slides/{SLIDE_ID} — update
