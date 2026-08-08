@@ -14,8 +14,8 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
-    "start": "next start",
+    "build": "prisma generate && next build",
+    "start": "prisma migrate deploy && next start",
     "lint": "eslint",
     "doctor": "node scripts/doctor.mjs",
     "db:migrate": "prisma migrate deploy",
