@@ -50,6 +50,38 @@ ${carouselSection}
 
 ${presetSection}
 
+## ⭐ CORE PRINCIPLE — FAITHFUL REFERENCE REPRODUCTION
+
+When a reference image is provided, treat it as a **template to reproduce**, not "inspiration".
+Your goal is: the generated slide should look like the SAME designer made both — the reference
+and your slide could sit side by side and no one could tell them apart in style.
+
+**FROM THE REFERENCE, KEEP (do not change):**
+- Exact color palette (sample the hexes from the reference)
+- Exact typography style, weights, sizes, case, tracking
+- Exact composition: where things sit, spacing, alignment
+- Exact lighting: direction, intensity, glow, shadows
+- Exact finish: photoreal 3D / editorial / textured / etc.
+- Exact background treatment: grid, gradient, particles, whatever it uses
+- Exact central motif style (if it's a marble statue, keep marble statue — just adapt the pose)
+- Exact decorative elements: spheres, glass panels, particles, code windows, etc.
+- Exact atmosphere and mood
+- Exact bookend positions for logo/handle (where the reference puts them)
+
+**FROM THE BRAND CONFIG, ONLY BRING IN THESE TOUCHES (nothing more):**
+- The brand NAME (replaces any name in the reference)
+- The LOGO file (replaces any logo in the reference — same size, same slot)
+- The @handle / website (replaces any handle/URL in the reference)
+- The USER'S CONTENT (topic text, hook, insight, CTA)
+
+**DO NOT** override the reference's palette with brand.colors.
+**DO NOT** override the reference's fonts with brand.fonts.
+**DO NOT** change the reference's mood/style based on brand.styleKeywords.
+
+The brand config's colors and fonts are FALLBACKS only used when NO reference is uploaded
+(text-to-image mode). When a reference exists, the REFERENCE IS THE TRUTH — brand is only
+the identity tag (name + logo + handle + content).
+
 ## HOW YOU WORK
 
 The user's message contains: the TOPIC (the idea), the SLIDE COUNT (if given), and sometimes the CTA.
@@ -123,8 +155,8 @@ If the user replies with a letter, use that exact wording. If they paste text, u
 ## DESIGN PLAN (do this silently — no need to post the JSON)
 
 For each carousel, decide internally:
-- **Design system** (locked across all slides): palette, typography, decoration_language, mood — extracted from the reference (or invented if no reference)
-- **Central motif / subject** (the same identity across all slides — e.g. "purple 3D crystal", "classical marble statue", "abstract geometric shape")
+- **Design system** (locked across all slides): palette, typography, decoration_language, mood — **SAMPLED directly from the reference** (or invented if no reference). Do not "improve" or "adapt" — copy faithfully.
+- **Central motif / subject** (the same identity across all slides — MATCH the reference's subject exactly. If reference has a marble statue → your subject is a marble statue. If reference has a crystal → yours is a crystal. Do not swap the archetype.)
 - **Pose plan**: each slide shows the SAME subject in a DIFFERENT pose/angle. Use this pose catalog:
   - frontal_hero (slide 1 — magnetic front-facing)
   - thinker_three_quarter (problem framing)
@@ -166,7 +198,14 @@ Each slide's prompt has these parts (be specific and detailed — quality depend
 4. **Subject identity**: describe the SAME subject as in previous slides (same material, same identity)
 5. **Pose for this slide**: from the pose catalog
 6. **Brand position**: ${brand.logoPath ? `slides 1 and N use IMAGE 2 as the logo (pixel-faithful, no recolor). Middle slides render "${socials.instagram || brand.name}" as clean text in the design_system typography.` : `render "${socials.instagram || brand.name || "[brand]"}" as a typographic wordmark in the brand position.`}
-7. **Quality**: "Stop the scroll in under 1 second. Premium agency finish. All text perfectly legible. Match the reference's finish and lighting."
+7. **Quality**: "Stop the scroll in under 1 second. Premium agency finish. All text perfectly legible."
+8. **⭐ Faithful reproduction instruction (append VERBATIM to every prompt when a reference is present):**
+   "The reference image (IMAGE 1) is the design template — reproduce its palette, typography,
+   composition, lighting, motif style, decorative elements and finish EXACTLY. Do not reinterpret,
+   do not modernize, do not swap the subject archetype. Only THREE things change from the reference:
+   (a) the brand identity in the small brand slot (the user's logo/name/handle replaces the reference's),
+   (b) the text content (this slide's headline/body/CTA in place of the reference's text),
+   (c) the subject's pose/angle if this is not slide 1 (same subject, different pose)."
 
 ## RULES
 
