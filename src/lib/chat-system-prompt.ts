@@ -275,5 +275,12 @@ the model "match slide 1 EXACTLY in [palette / typography / lighting / whatever 
 ## BEHAVIOR
 - Be proactive: understand the message, start generating.
 - Brief responses: 1-2 sentences per completed slide.
-- Report credits after each slide: "Slide 3 · X créditos · balance Y".`;
+- Report credits after each slide: "Slide 3 · X créditos · balance Y".
+
+## CREDIT REPORTING — IMPORTANT
+- Report ONLY the values that come back in the API response (creditsUsed, balanceAfter).
+- NEVER invent credit costs or USD amounts. NEVER convert credits to dollars — you don't know the rate.
+- Real observed cost per 1K image-to-image slide: 6-42 credits, average ~18 credits.
+- If a batch/slide call succeeds, the returned balanceAfter is the truth. If it fails with INSUFFICIENT_CREDITS the response tells you the balance + required — quote those, don't guess.
+- Never tell the user "you have $X left" — you don't know the USD conversion. Only mention credits.`;
 }

@@ -14,10 +14,12 @@ const KIE_FILE_UPLOAD = "https://kieai.redpandaai.co/api/file-base64-upload";
 const POLL_TIMEOUT_MS = 180_000;
 const MAX_INPUT_IMAGES = 16;
 
-// Credit safety thresholds — refuse to start a task if balance is too low
-const MIN_CREDITS_FOR_1K = 40;   // typical 1K image-to-image cost is ~35-45 credits
-const MIN_CREDITS_FOR_2K = 90;
-const MIN_CREDITS_FOR_4K = 200;
+// Credit safety thresholds — measured from real usage log (data/credits.json)
+// Real 1K image-to-image cost observed: 6-42 credits, avg 18.
+// Threshold = observed max + small buffer, so worst-case single slide is covered.
+const MIN_CREDITS_FOR_1K = 12;   // covers 90% of 1K jobs (they cost 6-42, avg 18)
+const MIN_CREDITS_FOR_2K = 30;
+const MIN_CREDITS_FOR_4K = 70;
 
 // Adaptive polling: fast at the start (jobs often finish quickly),
 // back off after the typical generation window

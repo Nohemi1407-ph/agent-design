@@ -5,11 +5,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-// Estimated credit cost per slide (rough, based on observed kie.ai charges)
+// Estimated credit cost per slide — measured from real usage log
+// (data/credits.json): 1K image-to-image avg 18, max 42. Using max as budget.
 const ESTIMATED_COST = {
-  "1K": 45,
-  "2K": 95,
-  "4K": 210,
+  "1K": 25,   // avg 18, max 42 — use median-high for realistic budgeting
+  "2K": 55,
+  "4K": 120,
 } as const;
 
 interface BatchSlide {
