@@ -61,7 +61,15 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 export async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
-  if (/^https?:\/\//i.test(input)) return input;
+  // If the input is a localhost/127.0.0.1 URL, extract the /uploads/ path and
+  // upload the local file to kie.ai — kie's servers can't reach localhost.
+  const localhostMatch = input.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/.+)$/i);
+  if (localhostMatch) {
+    input = localhostMatch[1]; // fall through to the local-file branch below
+  } else if (/^https?:\/\//i.test(input)) {
+    // Real public URL — kie can fetch it directly.
+    return input;
+  }
 
   const rel = input.replace(/^\//, "");
   if (!rel.startsWith("uploads/")) {

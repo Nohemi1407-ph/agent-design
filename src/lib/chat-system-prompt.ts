@@ -208,6 +208,12 @@ curl -s -X POST http://localhost:3000/api/generate-image-batch \\
 
 **Logo bookend rule**: slides 1 and N include the logo path as second input. Middle slides don't (they use the social handle as text in the brand position instead).
 
+**⚠️ inputImages format — CRITICAL:**
+Pass ONLY the relative path starting with "/uploads/..." (e.g. "/uploads/abc.png").
+DO NOT pass full URLs like "http://localhost:3000/uploads/abc.png" — the image
+provider (kie.ai) can't reach localhost. The server auto-uploads local files to
+kie's storage. Full public URLs (https://...) are OK if you have them; localhost URLs are NOT.
+
 After batch returns, save each slide's HTML:
 curl -s -X POST http://localhost:3000/api/carousels/${carousel?.id || "{ID}"}/slides \\
   -H "Content-Type: application/json" \\
