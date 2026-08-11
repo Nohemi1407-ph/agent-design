@@ -56,17 +56,28 @@ When a reference image is provided, treat it as a **template to reproduce**, not
 Your goal is: the generated slide should look like the SAME designer made both — the reference
 and your slide could sit side by side and no one could tell them apart in style.
 
-**FROM THE REFERENCE, KEEP (do not change):**
-- Exact color palette (sample the hexes from the reference)
+**FROM THE REFERENCE — KEEP LITERALLY (the visual language):**
+- Exact color palette (sample the hexes)
 - Exact typography style, weights, sizes, case, tracking
-- Exact composition: where things sit, spacing, alignment
+- Exact composition zones and spacing
 - Exact lighting: direction, intensity, glow, shadows
-- Exact finish: photoreal 3D / editorial / textured / etc.
-- Exact background treatment: grid, gradient, particles, whatever it uses
-- Exact central motif style (if it's a marble statue, keep marble statue — just adapt the pose)
-- Exact decorative elements: spheres, glass panels, particles, code windows, etc.
+- Exact finish (photoreal 3D / editorial / textured / etc.)
+- Exact background treatment (grid, gradient, particles, etc.)
+- Exact decorative elements style (glass panels, code windows, etc.)
 - Exact atmosphere and mood
-- Exact bookend positions for logo/handle (where the reference puts them)
+- Exact bookend positions for logo/handle
+
+**INTERPRET the reference's SUBJECT — don't copy it literally:**
+The reference's subject (marble statue, Goku, crystal, gear, etc.) is a VISUAL LANGUAGE example,
+not a literal instruction. For each slide, invent a subject that:
+- **Symbolically fits THIS slide's message** (e.g. message about "closing sales" → a figure locking a door / clenching a fist / holding a key; message about "listening" → a figure leaning in, hand to ear)
+- **Uses the SAME visual language as the reference** — same material (marble, chrome, glass), same lighting, same finish, same scale in the frame, same relationship to the environment
+- **Reads like a different scene from the same universe** as the reference
+
+Example: reference has "Goku on a purple cosmic scene". Message is about "understanding customer pain" →
+generate a figure in the same 3D-render + cosmic style, in a contemplative pose (kneeling, head bowed, one
+hand touching the ground), same palette, same finish. NOT another Goku — a NEW subject that fits the message
+but feels like it belongs in the same visual world.
 
 **FROM THE BRAND CONFIG, ONLY BRING IN THESE TOUCHES (nothing more):**
 - The brand NAME (replaces any name in the reference)
@@ -181,8 +192,12 @@ For each carousel, decide internally:
   - Mood
   - Composition zones (where the subject sits, where text sits, where the brand slot is)
   - Brand handle text (from Q1 answer — SAME EXACT TEXT on every slide)
-- **Central motif / subject** (LOCKED — same identity every slide): MATCH the reference's subject exactly. If reference has a marble statue → your subject is a marble statue. If reference has a crystal → yours is a crystal. Do not swap the archetype.
-- **Pose plan**: each slide shows the SAME subject in a DIFFERENT pose/angle. Use this pose catalog:
+- **Central motif / subject** — INTERPRET the message per slide:
+  - Extract the MATERIAL / FINISH of the reference's subject (marble, chrome, glass, photograph, etc.) — this stays constant.
+  - For each slide, invent a subject that **symbolically represents that slide's message** (kneeling figure for "understanding", clenched fist for "closing", door / key for "unlocking", etc.).
+  - The subject changes per slide because the message changes per slide — but ALL subjects share the same material, finish, lighting, and cosmic-world atmosphere as the reference.
+  - Think: "same universe, different scene from the story".
+- **Pose plan** (only used when the subject is a repeatable character across slides — like if the user's avatar is featured):
   - frontal_hero (slide 1 — magnetic front-facing)
   - thinker_three_quarter (problem framing)
   - presenting (revealing a fact/idea)
@@ -226,17 +241,21 @@ Each slide's prompt has these parts (be specific and detailed — quality depend
 1. **Design system**: paste the palette, typography, decoration_language, mood you decided
 2. **Safe zones**: Canvas ${dimensions.width}x${dimensions.height}px. 80px outer padding untouchable. MASSIVE TEXT size by longest word: ≤6=160px, 7-9=120px, 10-12=85px, 13+=65px. Never hyphenate. Never split words across lines.
 3. **Content**: EYEBROW / MASSIVE TEXT / BODY / BOTTOM PHRASE for this slide
-4. **Subject identity**: describe the SAME subject as in previous slides (same material, same identity)
-5. **Pose for this slide**: from the pose catalog
+4. **Subject for this slide**: describe a subject that SYMBOLICALLY represents this slide's message (see the "INTERPRET the reference's SUBJECT" section above). Same MATERIAL/finish/lighting/atmosphere as the reference — different scene from the same universe.
+5. **Pose/composition**: describe how the subject sits in the frame (camera angle, gesture, expression if applicable)
 6. **Brand position**: ${brand.logoPath ? `slides 1 and N use IMAGE 2 as the logo (pixel-faithful, no recolor). Middle slides render the LOCKED HANDLE from Q1 as clean text in the reference's typography style.` : `render the LOCKED HANDLE from Q1 as a typographic wordmark in the brand position, in the reference's typography style.`} The handle text is EXACTLY the same on every slide — no variations, no abbreviations, no additions.
 7. **Quality**: "Stop the scroll in under 1 second. Premium agency finish. All text perfectly legible."
-8. **⭐ Faithful reproduction instruction (append VERBATIM to every prompt when a reference is present):**
-   "The reference image (IMAGE 1) is the design template — reproduce its palette, typography,
-   composition, lighting, motif style, decorative elements and finish EXACTLY. Do not reinterpret,
-   do not modernize, do not swap the subject archetype. Only THREE things change from the reference:
-   (a) the brand identity in the small brand slot (the user's logo/name/handle replaces the reference's),
-   (b) the text content (this slide's headline/body/CTA in place of the reference's text),
-   (c) the subject's pose/angle if this is not slide 1 (same subject, different pose)."
+8. **⭐ Faithful VISUAL LANGUAGE + interpreted SUBJECT (append VERBATIM when a reference is present):**
+   "The reference image (IMAGE 1) is the VISUAL LANGUAGE template — reproduce its palette,
+   typography, composition, lighting, decorative elements, material, finish and atmosphere EXACTLY.
+   However, the SUBJECT in the frame should be REINTERPRETED to visually represent THIS slide's
+   message: <describe the symbolic subject that fits this slide's content>. Keep the SAME material
+   (marble / chrome / glass / photorealism / whatever the reference uses), SAME lighting, SAME
+   finish, SAME scale — but the subject itself embodies the meaning of this slide.
+   Only these things change from the reference:
+   (a) the brand identity in the brand slot (user's logo/name/handle),
+   (b) the text content (this slide's headline/body/CTA),
+   (c) the SUBJECT (reinterpreted to symbolize this slide's message, in the same visual language)."
 
 ## RULES
 
@@ -258,7 +277,7 @@ sending each prompt — if any differ, fix them):
 - Same background treatment and ambient elements
 - Same lighting direction, intensity, color
 - Same finish (photoreal, 3D, editorial, etc.)
-- Same subject archetype (marble statue, crystal, gear, etc.) — literally the SAME character
+- Same subject MATERIAL/finish (marble, chrome, glass, photorealism) — but the subject ITSELF varies per slide to symbolize each message
 - Same handle text (from Q1) in the SAME position with the SAME size
 - Same slide number style (if used)
 - Same logo treatment on slides 1 and N (same size, same position, same slot)
