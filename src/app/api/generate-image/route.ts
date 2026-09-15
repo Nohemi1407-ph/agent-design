@@ -14,13 +14,14 @@ export const maxDuration = 300;
 
 const KIE_BASE = "https://api.kie.ai";
 const KIE_FILE_UPLOAD = "https://kieai.redpandaai.co/api/file-base64-upload";
-const POLL_TIMEOUT_MS = 180_000;
+const POLL_TIMEOUT_MS = 270_000;   // 4.5 min — under the 300s API route cap, enough for parallel batches
 const MAX_INPUT_IMAGES = 16;
 
-// Credit safety thresholds — refuse to start a task if balance is too low
-const MIN_CREDITS_FOR_1K = 40;   // typical 1K image-to-image cost is ~35-45 credits
-const MIN_CREDITS_FOR_2K = 90;
-const MIN_CREDITS_FOR_4K = 200;
+// Credit safety thresholds — measured from real usage log (data/credits.json)
+// Real 1K image-to-image cost observed: 6-42 credits, avg 18.
+const MIN_CREDITS_FOR_1K = 12;   // covers 90% of 1K jobs (they cost 6-42, avg 18)
+const MIN_CREDITS_FOR_2K = 30;
+const MIN_CREDITS_FOR_4K = 70;
 
 // Adaptive polling: fast at the start (jobs often finish quickly),
 // back off after the typical generation window
@@ -62,7 +63,14 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 export async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
-  if (/^https?:\/\//i.test(input)) return input;
+  // If the input is a localhost URL, extract the /uploads/ path and upload the
+  // local file to kie.ai — kie's servers can't reach localhost.
+  const localhostMatch = input.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/.+)$/i);
+  if (localhostMatch) {
+    input = localhostMatch[1];
+  } else if (/^https?:\/\//i.test(input)) {
+    return input;
+  }
 
   const rel = input.replace(/^\//, "");
   if (!rel.startsWith("uploads/")) {
