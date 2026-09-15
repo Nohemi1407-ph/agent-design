@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import Resend from "next-auth/providers/resend";
 import { db } from "@/lib/db";
+import { authConfig } from "./auth.config";
 
 // Emails that get admin role automatically on first sign-in
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mandaloyaonline1314@gmail.com")
@@ -10,6 +11,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mandaloyaonline1314@gmail.com
   .filter(Boolean);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   adapter: PrismaAdapter(db),
   session: { strategy: "database" },
   providers: [
@@ -18,22 +20,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       from: process.env.EMAIL_FROM || "onboarding@resend.dev",
     }),
   ],
-  pages: {
-    signIn: "/login",
-    verifyRequest: "/login/check-email",
-  },
   callbacks: {
+    ...authConfig.callbacks,
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
-        // Attach role for UI checks
         (session.user as { role?: string }).role = (user as { role?: string }).role;
       }
       return session;
     },
   },
   events: {
-    // On first sign-in, promote to admin if email is in ADMIN_EMAILS
     async signIn({ user }) {
       if (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
         await db.user.update({
