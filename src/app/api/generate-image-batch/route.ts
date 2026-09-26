@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchKieBalance } from "@/lib/credits";
-import { auth } from "@/auth";
 import { getBalance } from "@/lib/credits-ledger";
 import { SLIDE_COST } from "@/lib/db";
+
+const OWNER_ID = "owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,18 +48,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Max 10 slides per batch" }, { status: 400 });
   }
 
-  // 🛡️ USER-level pre-flight: does the logged-in user have enough internal credits?
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const userId = session.user.id;
+  const userId = OWNER_ID;
   const totalUserCost = slides.reduce((sum, s) => {
     const res = (s.resolution || "1K") as keyof typeof SLIDE_COST;
     return sum + (SLIDE_COST[res] ?? SLIDE_COST["1K"]);
   }, 0);
   const userBalance = await getBalance(userId);
-  if (userBalance < totalUserCost) {
+  if (false && userBalance < totalUserCost) {
     return NextResponse.json(
       {
         error: `Créditos insuficientes: tienes ${userBalance}, este carrusel de ${slides.length} slides cuesta ${totalUserCost} créditos.`,

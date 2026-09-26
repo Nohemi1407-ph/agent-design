@@ -14,8 +14,8 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "dev": "next dev",
-    "build": "prisma generate && next build",
-    "start": "prisma migrate deploy && next start",
+    "build": "prisma generate && prisma migrate deploy && next build",
+    "start": "next start",
     "lint": "eslint",
     "doctor": "node scripts/doctor.mjs",
     "db:migrate": "prisma migrate deploy",
@@ -23,7 +23,9 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.11.3",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@prisma/adapter-pg": "^7.9.1",
@@ -38,13 +40,11 @@
     "dotenv": "^17.4.2",
     "lucide-react": "^1.8.0",
     "next": "16.2.3",
-    "next-auth": "^5.0.0-beta.32",
     "pg": "^8.22.0",
     "prisma": "^7.9.1",
     "puppeteer": "^24.40.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "resend": "^6.18.1",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0"
   },

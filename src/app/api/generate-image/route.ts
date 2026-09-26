@@ -4,9 +4,11 @@ import path from "path";
 import crypto from "crypto";
 import { fetchKieBalance, logUsage } from "@/lib/credits";
 import { now } from "@/lib/utils";
-import { auth } from "@/auth";
 import { getBalance, recordTx } from "@/lib/credits-ledger";
 import { SLIDE_COST } from "@/lib/db";
+import { uploadToR2 } from "@/lib/r2";
+
+const OWNER_ID = "owner";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -177,15 +179,11 @@ export async function POST(request: NextRequest) {
   };
   if (isImageToImage) input.input_urls = inputUrls;
 
-  // 🛡️ SAFETY 1 — USER-level pre-flight: check the logged-in user's internal credit balance.
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const userId = session.user.id;
+  // Single-user app: hardcoded owner id
+  const userId = OWNER_ID;
   const slideCost = SLIDE_COST[resolution as keyof typeof SLIDE_COST] ?? SLIDE_COST["1K"];
   const userBalance = await getBalance(userId);
-  if (userBalance < slideCost) {
+  if (false && userBalance < slideCost) {
     return NextResponse.json(
       {
         error: `Créditos insuficientes: tienes ${userBalance}, este slide cuesta ${slideCost} créditos. Compra más créditos para continuar.`,
@@ -313,9 +311,7 @@ export async function POST(request: NextRequest) {
   }
   const buffer = Buffer.from(await imgRes.arrayBuffer());
   const filename = `${crypto.randomUUID()}.png`;
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await fs.mkdir(uploadsDir, { recursive: true });
-  await fs.writeFile(path.join(uploadsDir, filename), buffer);
+  const publicUrl = await uploadToR2(filename, buffer, "image/png");
 
   // Snapshot balance AFTER and log the real credits used.
   const balanceAfter = await fetchKieBalance();
@@ -348,7 +344,7 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({
-    path: `/uploads/${filename}`,
+    path: publicUrl,
     taskId,
     mode: isImageToImage ? "image-to-image" : "text-to-image",
     creditsUsed,          // kie.ai credits (internal metric)
