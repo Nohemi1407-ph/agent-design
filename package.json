@@ -49,15 +49,15 @@
     "tailwind-merge": "^3.5.0",
     "@tailwindcss/postcss": "^4",
     "tailwindcss": "^4",
-    "typescript": "^5"
-  },
-  "devDependencies": {
+    "typescript": "^5",
     "@types/archiver": "^7.0.0",
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^20",
     "@types/pg": "^8.21.0",
     "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react-dom": "^19"
+  },
+  "devDependencies": {
     "eslint": "^9",
     "eslint-config-next": "16.2.3"
   }
