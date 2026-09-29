@@ -318,6 +318,66 @@ export async function POST(request: NextRequest) {
       }
     }
   }
+
+  // Attach reference images (and logo) as vision blocks so the model can
+  // actually SEE what it's supposed to reproduce. The old Claude CLI flow
+  // used the Read tool which fed image bytes to the model; without this the
+  // SDK loop only saw URLs, which is why generations stopped matching the
+  // uploaded reference.
+  type ImgSrc = { url: string; label: string };
+  const refSources: ImgSrc[] = [];
+  if (carousel?.referenceImages?.length) {
+    carousel.referenceImages.forEach((r, i) => {
+      if (r?.url && /^https?:\/\//i.test(r.url)) {
+        refSources.push({ url: r.url, label: `Image ${i + 1}: reference "${r.name}" (${r.url})` });
+      }
+    });
+  }
+  if (brand.logoPath && /^https?:\/\//i.test(brand.logoPath)) {
+    refSources.push({
+      url: brand.logoPath,
+      label: `Image ${refSources.length + 1}: brand logo (${brand.logoPath})`,
+    });
+  }
+
+  const refBlocks: Anthropic.ImageBlockParam[] = [];
+  for (const src of refSources) {
+    try {
+      const dl = await fetch(src.url);
+      if (!dl.ok) continue;
+      const ct = dl.headers.get("content-type") || "image/png";
+      const media: Anthropic.ImageBlockParam.Source["media_type"] =
+        ct.includes("jpeg") || ct.includes("jpg")
+          ? "image/jpeg"
+          : ct.includes("webp")
+            ? "image/webp"
+            : ct.includes("gif")
+              ? "image/gif"
+              : "image/png";
+      const buf = Buffer.from(await dl.arrayBuffer());
+      refBlocks.push({
+        type: "image",
+        source: { type: "base64", media_type: media, data: buf.toString("base64") },
+      });
+    } catch (e) {
+      console.warn("[chat] failed to attach reference image", src.url, e);
+    }
+  }
+
+  if (refBlocks.length > 0) {
+    messages.push({
+      role: "user",
+      content: [
+        ...refBlocks,
+        {
+          type: "text",
+          text:
+            `The images above are your visual references for THIS carousel. Study their palette, typography, composition, lighting, material and mood — every slide you generate must reproduce this visual language faithfully. When you call generate_image, pass these exact URLs as inputImages so kie.ai runs in image-to-image mode:\n${refSources.map((s) => s.label).join("\n")}`,
+        },
+      ],
+    });
+  }
+
   messages.push({ role: "user", content: message });
 
   const client = new Anthropic({ apiKey });

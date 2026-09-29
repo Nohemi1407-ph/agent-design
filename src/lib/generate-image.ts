@@ -52,12 +52,78 @@ const MIME_BY_EXT: Record<string, string> = {
   ".webp": "image/webp",
 };
 
+async function uploadBufferToKie(
+  buffer: Buffer,
+  mime: string,
+  fileName: string,
+  apiKey: string,
+): Promise<string> {
+  const res = await fetch(KIE_FILE_UPLOAD, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      base64Data: `data:${mime};base64,${buffer.toString("base64")}`,
+      uploadPath: "agent-design",
+      fileName,
+    }),
+  });
+  const data = await res.json().catch(() => null);
+  const url = data?.data?.downloadUrl;
+  if (!res.ok || !url) {
+    throw new Error(`Failed to upload input image: ${data?.msg || res.status}`);
+  }
+  return url;
+}
+
+function mimeFromExt(ext: string): string {
+  return MIME_BY_EXT[ext.toLowerCase()] || "image/png";
+}
+
+// Whether kie.ai can fetch this URL directly. It can fetch its own storage; for
+// everything else we re-host the image on kie so the reference is guaranteed to
+// be pulled into the image-to-image job (parity with the old flow, where every
+// reference was uploaded to kie via KIE_FILE_UPLOAD).
+function isKieHostedUrl(u: string): boolean {
+  try {
+    const host = new URL(u).hostname.toLowerCase();
+    return host.endsWith("kie.ai") || host.endsWith("redpandaai.co");
+  } catch {
+    return false;
+  }
+}
+
 export async function resolveInputUrl(input: string, apiKey: string): Promise<string> {
   const localhostMatch = input.match(/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(\/.+)$/i);
   if (localhostMatch) {
     input = localhostMatch[1];
   } else if (/^https?:\/\//i.test(input)) {
-    return input;
+    // Already kie-hosted → hand it back directly.
+    if (isKieHostedUrl(input)) return input;
+
+    // External URL (e.g. R2). Cache by URL, then download + re-upload to kie
+    // so the reference is served from kie's own storage — matches the old
+    // /uploads/ flow and prevents kie from silently skipping references it
+    // can't fetch cleanly.
+    const cached = await getCachedUrl(input, 0);
+    if (cached) return cached;
+
+    const dl = await fetch(input);
+    if (!dl.ok) {
+      throw new Error(`Failed to download reference image (${dl.status}): ${input}`);
+    }
+    const buf = Buffer.from(await dl.arrayBuffer());
+    const urlPath = (() => {
+      try { return new URL(input).pathname; } catch { return input; }
+    })();
+    const ext = path.extname(urlPath).toLowerCase() || ".png";
+    const mime = mimeFromExt(ext);
+    const fileName = path.basename(urlPath) || `ref-${crypto.randomUUID()}${ext}`;
+    const kieUrl = await uploadBufferToKie(buf, mime, fileName, apiKey);
+    await setCachedUrl(input, 0, kieUrl);
+    return kieUrl;
   }
 
   const rel = input.replace(/^\//, "");
@@ -74,25 +140,9 @@ export async function resolveInputUrl(input: string, apiKey: string): Promise<st
   if (cached) return cached;
 
   const buffer = await fs.readFile(filePath);
-  const res = await fetch(KIE_FILE_UPLOAD, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      base64Data: `data:${mime};base64,${buffer.toString("base64")}`,
-      uploadPath: "agent-design",
-      fileName: path.basename(filePath),
-    }),
-  });
-  const data = await res.json().catch(() => null);
-  const url = data?.data?.downloadUrl;
-  if (!res.ok || !url) {
-    throw new Error(`Failed to upload input image: ${data?.msg || res.status}`);
-  }
-  await setCachedUrl(rel, stat.mtimeMs, url);
-  return url;
+  const kieUrl = await uploadBufferToKie(buffer, mime, path.basename(filePath), apiKey);
+  await setCachedUrl(rel, stat.mtimeMs, kieUrl);
+  return kieUrl;
 }
 
 export interface GenerateImageInput {
