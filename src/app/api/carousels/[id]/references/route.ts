@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import path from "path";
 import { addReferenceImage, removeReferenceImage, getCarousel } from "@/lib/carousels";
 import { generateId, now } from "@/lib/utils";
 
@@ -28,12 +27,10 @@ export async function POST(
       return NextResponse.json({ error: "url is required" }, { status: 400 });
     }
 
-    const absPath = path.resolve(process.cwd(), "public", url.replace(/^\//, ""));
-
     const ref = {
       id: generateId(),
       url,
-      absPath,
+      absPath: url,
       name: name || "Reference image",
       addedAt: now(),
     };
