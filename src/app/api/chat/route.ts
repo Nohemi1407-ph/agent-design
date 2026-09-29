@@ -181,6 +181,7 @@ async function executeTool(
   name: string,
   input: Record<string, unknown>,
 ): Promise<string> {
+  console.log(`[chat.tool] ${name}`, JSON.stringify(input).slice(0, 500));
   try {
     switch (name) {
       case "create_slide": {
@@ -274,6 +275,7 @@ async function executeTool(
         return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
   } catch (err) {
+    console.error(`[chat.tool] ${name} ERROR`, err);
     return JSON.stringify({ error: err instanceof Error ? err.message : String(err) });
   }
 }
