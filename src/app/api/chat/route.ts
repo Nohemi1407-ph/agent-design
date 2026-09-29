@@ -86,7 +86,7 @@ const tools: Anthropic.Tool[] = [
   {
     name: "generate_image",
     description:
-      "Generate an image with GPT Image-2 via kie.ai. If inputImages is non-empty, uses image-to-image (use for style-locked slides with a reference and/or logo). Otherwise text-to-image. Returns {url, creditsUsed}. Instagram only needs 1K.",
+      "Generate an image with GPT Image-2 via kie.ai. CRITICAL: whenever the carousel has reference images (see 'Reference images' in the system prompt), you MUST pass their URLs in inputImages so kie.ai runs in image-to-image mode and faithfully copies the reference style. Only skip inputImages if the carousel truly has no references. Returns {url, mode, creditsUsed}. mode='text-to-image' means references were NOT used — if that happens by mistake, retry with inputImages.",
     input_schema: {
       type: "object",
       properties: {
@@ -100,7 +100,7 @@ const tools: Anthropic.Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Optional /uploads/... paths or URLs for image-to-image (reference + logo).",
+            "Array of full HTTPS URLs of reference images to condition the generation on (image-to-image mode). REQUIRED when the carousel has reference images uploaded. Pass the reference URLs from the system prompt's 'Reference images' section verbatim. Include the brand logo URL too when generating slide 1 or the last slide.",
         },
         carouselId: { type: "string" },
       },
