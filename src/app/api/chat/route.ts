@@ -357,11 +357,15 @@ export async function POST(request: NextRequest) {
             break;
           }
 
-          // Execute tool calls
-          const toolResults: Anthropic.ToolResultBlockParam[] = [];
-          for (const block of finalMsg.content) {
-            if (block.type === "tool_use") {
-              send({ type: "tool", name: block.name, input: block.input });
+          // Execute tool calls in parallel — image generations are independent
+          const toolUseBlocks = finalMsg.content.filter(
+            (b): b is Extract<typeof b, { type: "tool_use" }> => b.type === "tool_use",
+          );
+          for (const block of toolUseBlocks) {
+            send({ type: "tool", name: block.name, input: block.input });
+          }
+          const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
+            toolUseBlocks.map(async (block) => {
               const result = await executeTool(
                 block.name,
                 block.input as Record<string, unknown>,
@@ -372,13 +376,13 @@ export async function POST(request: NextRequest) {
                 if (parsed && typeof parsed === "object" && "error" in parsed) ok = false;
               } catch {}
               send({ type: "tool_result", name: block.name, ok });
-              toolResults.push({
-                type: "tool_result",
+              return {
+                type: "tool_result" as const,
                 tool_use_id: block.id,
                 content: result,
-              });
-            }
-          }
+              };
+            }),
+          );
 
           messages.push({ role: "assistant", content: finalMsg.content });
           messages.push({ role: "user", content: toolResults });
