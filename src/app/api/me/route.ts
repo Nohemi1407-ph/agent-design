@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getBalance } from "@/lib/credits-ledger";
 import { currentUserId } from "@/lib/user-context";
 import { db } from "@/lib/db";
+import { getGuestProfile } from "@/lib/guest-profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +36,12 @@ export async function GET() {
     balance = await getBalance(userId).catch(() => 0);
   }
 
+  const name = isAdmin ? "Owner" : (await getGuestProfile()).name;
+
   return NextResponse.json({
     id: userId,
     userId,
+    name,
     role: isAdmin ? "ADMIN" : "GUEST",
     isAdmin,
     hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,

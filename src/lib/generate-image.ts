@@ -246,10 +246,17 @@ export async function generateImage(
   const slideCost = SLIDE_COST[resolution as keyof typeof SLIDE_COST] ?? SLIDE_COST["1K"];
   await getBalance(userId); // maintained for parity
 
-  // Guest credit cap enforcement
+  const minRequired =
+    resolution === "4K" ? MIN_CREDITS_FOR_4K :
+    resolution === "2K" ? MIN_CREDITS_FOR_2K :
+    MIN_CREDITS_FOR_1K;
+
+  // Guest credit cap enforcement — in REAL kie.ai credit units.
+  // Pre-check uses the conservative per-resolution reserve so we don't start a
+  // call we can't afford.
   if (userId === "guest") {
     const [usage, cap] = await Promise.all([getGuestUsage(), getGuestEffectiveCap()]);
-    if (usage + slideCost > cap) {
+    if (cap - usage < minRequired) {
       return {
         ok: false,
         status: 402,
@@ -261,10 +268,6 @@ export async function generateImage(
   void OWNER_ID;
 
   const balanceBefore = await fetchKieBalance();
-  const minRequired =
-    resolution === "4K" ? MIN_CREDITS_FOR_4K :
-    resolution === "2K" ? MIN_CREDITS_FOR_2K :
-    MIN_CREDITS_FOR_1K;
 
   if (balanceBefore !== null && balanceBefore < minRequired) {
     return {
@@ -385,10 +388,13 @@ export async function generateImage(
     });
   }
 
+  // Charge the user in REAL kie.ai credits. Fall back to the resolution
+  // reserve if kie didn't report a delta (shouldn't happen on success).
+  const charged = creditsUsed > 0 ? Math.ceil(creditsUsed) : slideCost;
   const userTx = await recordTx({
     userId,
     type: "USAGE",
-    amount: -slideCost,
+    amount: -charged,
     reason: `Slide ${resolution} · ${isImageToImage ? "image-to-image" : "text-to-image"}`,
     taskId,
     carouselId: body.carouselId,
@@ -401,7 +407,7 @@ export async function generateImage(
     mode: isImageToImage ? "image-to-image" : "text-to-image",
     creditsUsed,
     balanceAfter,
-    userCreditsCharged: slideCost,
+    userCreditsCharged: charged,
     userBalanceAfter: userTx.balanceAfter,
   };
 }

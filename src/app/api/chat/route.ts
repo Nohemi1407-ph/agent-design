@@ -14,6 +14,8 @@ import {
 import { getPreset } from "@/lib/style-presets";
 import { generateImage } from "@/lib/generate-image";
 import type { AspectRatio } from "@/types/carousel";
+import { currentUserId } from "@/lib/user-context";
+import { logTokenUsage } from "@/lib/anthropic-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -382,6 +384,7 @@ export async function POST(request: NextRequest) {
 
   const client = new Anthropic({ apiKey });
   const encoder = new TextEncoder();
+  const chatUserId = await currentUserId();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -390,6 +393,8 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
       };
       let fullText = "";
+      let totalInputTokens = 0;
+      let totalOutputTokens = 0;
       const MAX_ITERATIONS = 20;
 
       try {
@@ -414,6 +419,10 @@ export async function POST(request: NextRequest) {
           }
 
           const finalMsg = await stream.finalMessage();
+          if (finalMsg.usage) {
+            totalInputTokens += finalMsg.usage.input_tokens || 0;
+            totalOutputTokens += finalMsg.usage.output_tokens || 0;
+          }
 
           if (finalMsg.stop_reason !== "tool_use") {
             break;
@@ -466,6 +475,16 @@ export async function POST(request: NextRequest) {
           );
           controller.close();
         } catch {}
+      } finally {
+        try {
+          await logTokenUsage({
+            userId: chatUserId,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+          });
+        } catch (e) {
+          console.warn("[chat] failed to log token usage", e);
+        }
       }
     },
   });

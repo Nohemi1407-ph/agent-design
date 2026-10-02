@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { currentUserId } from "@/lib/user-context";
 import { db } from "@/lib/db";
+import { getGuestProfile, setGuestProfile } from "@/lib/guest-profile";
+import { getTokenSummary } from "@/lib/anthropic-usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,15 +19,46 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [usageAgg, grantAgg, recent] = await Promise.all([
+  const [usageAgg, grantAgg, recent, profile, guestTokens, ownerTokens] = await Promise.all([
     db.creditTx.aggregate({ where: { userId: "guest", type: "USAGE" }, _sum: { amount: true } }),
     db.creditTx.aggregate({ where: { userId: "guest", type: "GRANT" }, _sum: { amount: true } }),
     db.creditTx.findMany({ where: { userId: "guest" }, orderBy: { createdAt: "desc" }, take: 20 }),
+    getGuestProfile(),
+    getTokenSummary("guest"),
+    getTokenSummary("owner"),
   ]);
 
   const used = Math.abs(usageAgg._sum.amount ?? 0);
   const cap = getGuestCap() + (grantAgg._sum.amount ?? 0);
   const balance = Math.max(0, cap - used);
 
-  return NextResponse.json({ used, cap, balance, recent });
+  return NextResponse.json({
+    name: profile.name,
+    used,
+    cap,
+    balance,
+    recent,
+    tokens: {
+      guest: guestTokens,
+      owner: ownerTokens,
+    },
+  });
+}
+
+export async function PATCH(request: NextRequest) {
+  const userId = await currentUserId();
+  if (userId !== "owner") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  let body: { name?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (typeof body.name !== "string" || !body.name.trim()) {
+    return NextResponse.json({ error: "Invalid name" }, { status: 400 });
+  }
+  const profile = await setGuestProfile({ name: body.name });
+  return NextResponse.json({ ok: true, name: profile.name });
 }
