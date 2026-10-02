@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Settings, Zap } from "lucide-react";
+import { ArrowLeft, Settings, Zap, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "./CreditsBadge";
 
@@ -24,6 +25,13 @@ export function TopBar({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  const logout = async () => {
+    await fetch("/api/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  };
 
   const startEditing = () => {
     setEditValue(title || "");
@@ -84,6 +92,15 @@ export function TopBar({
       </div>
       <div className="flex-1" />
       <CreditsBadge />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={logout}
+        aria-label="Log out"
+        title="Log out"
+      >
+        <LogOut className="h-4 w-4" />
+      </Button>
       {onSettingsClick && (
         <Button
           variant="ghost"

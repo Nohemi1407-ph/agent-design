@@ -1,9 +1,11 @@
 import { readFile, writeFile, rename, mkdir } from "fs/promises";
 import path from "path";
 import { Mutex } from "async-mutex";
+import { scopedFilename } from "./user-context";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
 const mutexes = new Map<string, Mutex>();
+
 
 function getMutex(filename: string): Mutex {
   let mutex = mutexes.get(filename);
@@ -19,6 +21,7 @@ export async function ensureDataDir(): Promise<void> {
 }
 
 export async function readData<T>(filename: string): Promise<T> {
+  filename = await scopedFilename(filename);
   const filePath = path.join(DATA_DIR, filename);
   try {
     const raw = await readFile(filePath, "utf-8");
@@ -35,6 +38,7 @@ export async function readData<T>(filename: string): Promise<T> {
 }
 
 export async function writeData<T>(filename: string, data: T): Promise<void> {
+  filename = await scopedFilename(filename);
   const mutex = getMutex(filename);
   await mutex.runExclusive(async () => {
     await ensureDataDir();

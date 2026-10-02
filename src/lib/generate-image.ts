@@ -7,8 +7,34 @@ import { getBalance, recordTx } from "@/lib/credits-ledger";
 import { SLIDE_COST } from "@/lib/db";
 import { uploadToR2 } from "@/lib/r2";
 import { readDataSafe, writeData } from "@/lib/data";
+import { currentUserId } from "@/lib/user-context";
+import { db } from "@/lib/db";
 
 const OWNER_ID = "owner";
+
+function getGuestCap(): number {
+  const raw = process.env.GUEST_CREDIT_CAP;
+  const n = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 500;
+}
+
+/** Returns credits already consumed by the guest (absolute value of USAGE sum). */
+async function getGuestUsage(): Promise<number> {
+  const agg = await db.creditTx.aggregate({
+    where: { userId: "guest", type: "USAGE" },
+    _sum: { amount: true },
+  });
+  return Math.abs(agg._sum.amount ?? 0);
+}
+
+/** Returns effective cap for guest including GRANT top-ups. */
+async function getGuestEffectiveCap(): Promise<number> {
+  const grants = await db.creditTx.aggregate({
+    where: { userId: "guest", type: "GRANT" },
+    _sum: { amount: true },
+  });
+  return getGuestCap() + (grants._sum.amount ?? 0);
+}
 const KIE_BASE = "https://api.kie.ai";
 const KIE_FILE_UPLOAD = "https://kieai.redpandaai.co/api/file-base64-upload";
 const POLL_TIMEOUT_MS = 270_000;
@@ -216,9 +242,23 @@ export async function generateImage(
   const input: Record<string, unknown> = { prompt, aspect_ratio: aspectRatio, resolution };
   if (isImageToImage) input.input_urls = inputUrls;
 
-  const userId = OWNER_ID;
+  const userId = await currentUserId();
   const slideCost = SLIDE_COST[resolution as keyof typeof SLIDE_COST] ?? SLIDE_COST["1K"];
   await getBalance(userId); // maintained for parity
+
+  // Guest credit cap enforcement
+  if (userId === "guest") {
+    const [usage, cap] = await Promise.all([getGuestUsage(), getGuestEffectiveCap()]);
+    if (usage + slideCost > cap) {
+      return {
+        ok: false,
+        status: 402,
+        error: "Credit cap reached, ask owner to top up",
+        code: "CREDIT_CAP_REACHED",
+      };
+    }
+  }
+  void OWNER_ID;
 
   const balanceBefore = await fetchKieBalance();
   const minRequired =

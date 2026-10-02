@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchKieBalance } from "@/lib/credits";
 import { getBalance } from "@/lib/credits-ledger";
 import { SLIDE_COST } from "@/lib/db";
+import { currentUserId } from "@/lib/user-context";
 
 const OWNER_ID = "owner";
+void OWNER_ID;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Max 10 slides per batch" }, { status: 400 });
   }
 
-  const userId = OWNER_ID;
+  const userId = await currentUserId();
   const totalUserCost = slides.reduce((sum, s) => {
     const res = (s.resolution || "1K") as keyof typeof SLIDE_COST;
     return sum + (SLIDE_COST[res] ?? SLIDE_COST["1K"]);
@@ -86,13 +88,14 @@ export async function POST(request: NextRequest) {
   }
 
   const origin = request.nextUrl.origin;
+  const forwardedCookie = request.headers.get("cookie") || "";
 
   const results = await Promise.all(
     slides.map(async (slide) => {
       try {
         const res = await fetch(`${origin}/api/generate-image`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", cookie: forwardedCookie },
           body: JSON.stringify({
             prompt: slide.prompt,
             inputImages: slide.inputImages,
