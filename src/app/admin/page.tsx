@@ -65,7 +65,10 @@ export default function AdminPage() {
   async function createGuest(e: React.FormEvent) {
     e.preventDefault();
     const name = newGuestName.trim();
-    if (!name) return;
+    if (!name) {
+      setMsg("Escribe un nombre primero.");
+      return;
+    }
     setCreating(true);
     setMsg(null);
     try {
@@ -188,10 +191,10 @@ export default function AdminPage() {
             />
             <button
               type="submit"
-              disabled={creating}
-              className="rounded-lg bg-accent text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+              disabled={creating || !newGuestName.trim()}
+              className="rounded-lg bg-accent text-white px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              + New guest
+              {creating ? "Creando…" : "+ New guest"}
             </button>
           </form>
           {msg && <p className="text-sm mt-2 text-foreground/70">{msg}</p>}
