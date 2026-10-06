@@ -10,7 +10,10 @@ const mutex = new Mutex();
 export interface Guest {
   id: string;
   name: string;
-  passwordHash: string;
+  /** Legacy password hash. Kept for backwards compatibility with existing guests. */
+  passwordHash?: string;
+  /** SHA-256 of a 6-digit numeric PIN. Primary auth for new guests. */
+  pin?: string;
   createdAt: string;
   archivedAt?: string;
 }
@@ -36,6 +39,12 @@ export function randomGuestId(): string {
 export function randomPassword(): string {
   // 16-char URL-safe
   return crypto.randomBytes(12).toString("base64url").slice(0, 16);
+}
+
+export function randomPin(): string {
+  // 6-digit numeric, zero-padded
+  const n = crypto.randomInt(0, 1_000_000);
+  return n.toString().padStart(6, "0");
 }
 
 async function readStoreRaw(): Promise<Store | null> {
@@ -92,24 +101,25 @@ export async function getGuest(id: string): Promise<Guest | null> {
 export async function createGuest(input: {
   name: string;
   password?: string;
-}): Promise<{ guest: Guest; plaintextPassword: string }> {
+}): Promise<{ guest: Guest; plaintextPin: string }> {
   const name = (input.name || "").trim().slice(0, 60);
   if (!name) throw new Error("Name required");
-  const plaintext = (input.password && input.password.trim()) || randomPassword();
+  const plaintextPin = randomPin();
+  const legacyPw = input.password && input.password.trim();
   return await mutex.runExclusive(async () => {
     const store = await loadStore();
     let id = randomGuestId();
-    // extremely unlikely collision but be safe
     while (store.guests.some((g) => g.id === id)) id = randomGuestId();
     const guest: Guest = {
       id,
       name,
-      passwordHash: sha256(plaintext),
+      pin: sha256(plaintextPin),
       createdAt: new Date().toISOString(),
     };
+    if (legacyPw) guest.passwordHash = sha256(legacyPw);
     store.guests.push(guest);
     await writeStore(store);
-    return { guest, plaintextPassword: plaintext };
+    return { guest, plaintextPin };
   });
 }
 
@@ -152,12 +162,39 @@ export async function setArchived(id: string, archived: boolean): Promise<Guest 
   });
 }
 
+export async function regeneratePin(
+  id: string,
+): Promise<{ guest: Guest; plaintextPin: string } | null> {
+  const plaintextPin = randomPin();
+  return await mutex.runExclusive(async () => {
+    const store = await loadStore();
+    const g = store.guests.find((x) => x.id === id);
+    if (!g) return null;
+    g.pin = sha256(plaintextPin);
+    await writeStore(store);
+    return { guest: g, plaintextPin };
+  });
+}
+
 export async function authenticateGuest(password: string): Promise<Guest | null> {
   if (!password) return null;
   const hash = sha256(password);
   const guests = await listGuests({ includeArchived: false });
   for (const g of guests) {
-    if (g.passwordHash === hash) return g;
+    if (g.passwordHash && g.passwordHash === hash) return g;
   }
   return null;
+}
+
+export async function authenticateGuestWithPin(
+  guestId: string,
+  pin: string,
+): Promise<Guest | null> {
+  if (!guestId || !pin) return null;
+  if (!/^\d{6}$/.test(pin)) return null;
+  const g = await getGuest(guestId);
+  if (!g || g.archivedAt) return null;
+  if (!g.pin) return null;
+  if (g.pin !== sha256(pin)) return null;
+  return g;
 }

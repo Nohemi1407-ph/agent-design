@@ -76,11 +76,11 @@ export async function POST(request: NextRequest) {
   if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
   const password = typeof body.password === "string" ? body.password.trim() : "";
   try {
-    const { guest, plaintextPassword } = await createGuest({
+    const { guest, plaintextPin } = await createGuest({
       name,
       password: password || undefined,
     });
-    return NextResponse.json({ ok: true, guest, plaintextPassword });
+    return NextResponse.json({ ok: true, guest, plaintextPin });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message || "Failed to create guest" },

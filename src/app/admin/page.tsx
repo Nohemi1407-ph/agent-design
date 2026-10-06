@@ -38,9 +38,9 @@ export default function AdminPage() {
   const [forbidden, setForbidden] = useState(false);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [newGuestName, setNewGuestName] = useState("");
-  const [newGuestPassword, setNewGuestPassword] = useState("");
   const [creating, setCreating] = useState(false);
-  const [revealed, setRevealed] = useState<{ id: string; password: string } | null>(null);
+  const [revealed, setRevealed] = useState<{ id: string; pin: string } | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -75,19 +75,15 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/guests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          password: newGuestPassword.trim() || undefined,
-        }),
+        body: JSON.stringify({ name }),
       });
       const data = await res.json();
       if (!res.ok) {
         setMsg(data.error || "Failed");
         return;
       }
-      setRevealed({ id: data.guest.id, password: data.plaintextPassword });
+      setRevealed({ id: data.guest.id, pin: data.plaintextPin });
       setNewGuestName("");
-      setNewGuestPassword("");
       await load();
     } finally {
       setCreating(false);
@@ -104,14 +100,25 @@ export default function AdminPage() {
   }
 
   async function regen(id: string) {
-    if (!confirm("Regenerate password? The old one stops working immediately.")) return;
-    const res = await fetch(`/api/admin/guests/${id}/regenerate-password`, {
+    if (!confirm("Regenerate PIN? The old one stops working immediately.")) return;
+    const res = await fetch(`/api/admin/guests/${id}/regenerate-pin`, {
       method: "POST",
     });
     const data = await res.json();
     if (res.ok) {
-      setRevealed({ id, password: data.plaintextPassword });
+      setRevealed({ id, pin: data.plaintextPin });
       await load();
+    }
+  }
+
+  async function copyInvite(id: string) {
+    const url = `${window.location.origin}/invite/${id}`;
+    try {
+      await navigator.clipboard?.writeText(url);
+      setCopied(id);
+      setTimeout(() => setCopied((c) => (c === id ? null : c)), 1500);
+    } catch {
+      /* ignore */
     }
   }
 
@@ -150,19 +157,29 @@ export default function AdminPage() {
       <TopBar title="Admin" showBack />
       <div className="p-6 max-w-4xl mx-auto w-full space-y-6">
         {revealed && (
-          <div className="rounded-xl border border-accent bg-accent/10 p-4">
-            <div className="font-semibold mb-1">
-              New password for {revealed.id} — copy it now, it will not be shown again
+          <div className="rounded-xl border border-accent bg-accent/10 p-5">
+            <div className="font-semibold mb-3">
+              New PIN for {revealed.id} — copy it now, it will not be shown again
             </div>
-            <div className="flex items-center gap-2">
-              <code className="font-mono text-sm bg-background px-2 py-1 rounded border border-border select-all">
-                {revealed.password}
+            <div className="flex items-center gap-3 flex-wrap">
+              <code className="font-mono text-3xl tracking-[0.4em] bg-background px-4 py-3 rounded-lg border border-border select-all">
+                {revealed.pin}
               </code>
               <button
-                className="text-xs px-2 py-1 rounded bg-accent text-white"
-                onClick={() => navigator.clipboard?.writeText(revealed.password)}
+                className="text-sm px-3 py-2 rounded bg-accent text-white"
+                onClick={() => navigator.clipboard?.writeText(revealed.pin)}
               >
-                Copy
+                Copy PIN
+              </button>
+              <button
+                className="text-sm px-3 py-2 rounded border border-border"
+                onClick={() =>
+                  navigator.clipboard?.writeText(
+                    `${window.location.origin}/invite/${revealed.id}`,
+                  )
+                }
+              >
+                Copy invite link
               </button>
               <button
                 className="text-xs px-2 py-1 rounded border border-border ml-auto"
@@ -181,12 +198,6 @@ export default function AdminPage() {
               value={newGuestName}
               onChange={(e) => setNewGuestName(e.target.value)}
               placeholder="Name"
-              className="flex-1 min-w-[160px] rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-            />
-            <input
-              value={newGuestPassword}
-              onChange={(e) => setNewGuestPassword(e.target.value)}
-              placeholder="Password (blank = auto)"
               className="flex-1 min-w-[160px] rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
             />
             <button
@@ -222,10 +233,12 @@ export default function AdminPage() {
               <GuestCard
                 key={g.id}
                 guest={g}
+                copied={copied === g.id}
                 onRename={(n) => rename(g.id, n)}
                 onRegen={() => regen(g.id)}
                 onGrant={() => grant(g.id)}
                 onArchive={() => toggleArchive(g.id, !!g.archivedAt)}
+                onCopyInvite={() => copyInvite(g.id)}
               />
             ))}
           </div>
@@ -251,16 +264,20 @@ export default function AdminPage() {
 
 function GuestCard({
   guest,
+  copied,
   onRename,
   onRegen,
   onGrant,
   onArchive,
+  onCopyInvite,
 }: {
   guest: GuestSummary;
+  copied: boolean;
   onRename: (name: string) => void;
   onRegen: () => void;
   onGrant: () => void;
   onArchive: () => void;
+  onCopyInvite: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(guest.name);
@@ -317,10 +334,16 @@ function GuestCard({
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
           <button
+            onClick={onCopyInvite}
+            className="text-xs px-2 py-1 rounded border border-border"
+          >
+            {copied ? "Copied!" : "Copy invite link"}
+          </button>
+          <button
             onClick={onRegen}
             className="text-xs px-2 py-1 rounded border border-border"
           >
-            Regenerate password
+            Regenerate PIN
           </button>
           <button
             onClick={onGrant}
