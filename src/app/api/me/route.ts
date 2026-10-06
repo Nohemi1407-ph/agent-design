@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getBalance } from "@/lib/credits-ledger";
 import { currentUserId } from "@/lib/user-context";
 import { db } from "@/lib/db";
-import { getGuestProfile } from "@/lib/guest-profile";
+import { getGuest } from "@/lib/guests";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,24 +19,25 @@ export async function GET() {
 
   let balance = 0;
   let cap: number | null = null;
+  let name = "Owner";
 
-  if (userId === "guest") {
-    const [usageAgg, grantAgg] = await Promise.all([
+  if (!isAdmin) {
+    const [usageAgg, grantAgg, guest] = await Promise.all([
       db.creditTx
         .aggregate({ where: { userId, type: "USAGE" }, _sum: { amount: true } })
         .catch(() => ({ _sum: { amount: 0 } })),
       db.creditTx
         .aggregate({ where: { userId, type: "GRANT" }, _sum: { amount: true } })
         .catch(() => ({ _sum: { amount: 0 } })),
+      getGuest(userId).catch(() => null),
     ]);
     const used = Math.abs(usageAgg._sum.amount ?? 0);
     cap = getGuestCap() + (grantAgg._sum.amount ?? 0);
     balance = Math.max(0, cap - used);
+    name = guest?.name ?? "Invitado";
   } else {
     balance = await getBalance(userId).catch(() => 0);
   }
-
-  const name = isAdmin ? "Owner" : (await getGuestProfile()).name;
 
   return NextResponse.json({
     id: userId,

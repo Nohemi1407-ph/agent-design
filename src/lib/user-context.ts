@@ -1,7 +1,14 @@
 import { headers } from "next/headers";
 import { AsyncLocalStorage } from "async_hooks";
 
-export type UserId = "owner" | "guest";
+/**
+ * UserId is now a free-form string:
+ *   - "owner"              — the single admin
+ *   - "guest"              — the grandfathered legacy single-guest (its data lives under guest_*)
+ *   - "g_<alnum>"          — a managed guest (data lives under g_<alnum>_*)
+ * Validation happens in session.ts (regex) and guests.ts (isValidGuestId).
+ */
+export type UserId = string;
 
 interface Ctx {
   userId: UserId;
@@ -26,7 +33,7 @@ export async function currentUserId(): Promise<UserId> {
   try {
     const h = await headers();
     const u = h.get("x-user-id");
-    if (u === "owner" || u === "guest") return u;
+    if (u) return u;
   } catch {
     // headers() not available (build time, non-request); fall through
   }

@@ -1,64 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
-import { currentUserId } from "@/lib/user-context";
-import { db } from "@/lib/db";
-import { getGuestProfile, setGuestProfile } from "@/lib/guest-profile";
-import { getTokenSummary } from "@/lib/anthropic-usage";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function getGuestCap(): number {
-  const raw = process.env.GUEST_CREDIT_CAP;
-  const n = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : 500;
-}
-
+// Deprecated single-guest endpoint. Use /api/admin/guests instead.
 export async function GET() {
-  const userId = await currentUserId();
-  if (userId !== "owner") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const [usageAgg, grantAgg, recent, profile, guestTokens, ownerTokens] = await Promise.all([
-    db.creditTx.aggregate({ where: { userId: "guest", type: "USAGE" }, _sum: { amount: true } }),
-    db.creditTx.aggregate({ where: { userId: "guest", type: "GRANT" }, _sum: { amount: true } }),
-    db.creditTx.findMany({ where: { userId: "guest" }, orderBy: { createdAt: "desc" }, take: 20 }),
-    getGuestProfile(),
-    getTokenSummary("guest"),
-    getTokenSummary("owner"),
-  ]);
-
-  const used = Math.abs(usageAgg._sum.amount ?? 0);
-  const cap = getGuestCap() + (grantAgg._sum.amount ?? 0);
-  const balance = Math.max(0, cap - used);
-
-  return NextResponse.json({
-    name: profile.name,
-    used,
-    cap,
-    balance,
-    recent,
-    tokens: {
-      guest: guestTokens,
-      owner: ownerTokens,
-    },
-  });
+  return NextResponse.json(
+    { error: "Gone — use /api/admin/guests" },
+    { status: 410 },
+  );
 }
 
-export async function PATCH(request: NextRequest) {
-  const userId = await currentUserId();
-  if (userId !== "owner") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  let body: { name?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-  if (typeof body.name !== "string" || !body.name.trim()) {
-    return NextResponse.json({ error: "Invalid name" }, { status: 400 });
-  }
-  const profile = await setGuestProfile({ name: body.name });
-  return NextResponse.json({ ok: true, name: profile.name });
+export async function PATCH() {
+  return NextResponse.json(
+    { error: "Gone — use /api/admin/guests/[id]" },
+    { status: 410 },
+  );
 }

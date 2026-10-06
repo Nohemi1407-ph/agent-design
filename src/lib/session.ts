@@ -3,6 +3,9 @@ import type { UserId } from "./user-context";
 
 export const SESSION_COOKIE = "session";
 
+/** Allowed userId shapes in a session cookie. Keep in sync with guests.ts GUEST_ID_RE. */
+const SESSION_USER_ID_RE = /^(owner|guest|g_[A-Za-z0-9]{8,16})$/;
+
 function getSecret(): string {
   const s = process.env.AUTH_SECRET;
   if (!s) throw new Error("AUTH_SECRET is not set");
@@ -43,7 +46,7 @@ export async function verifySessionValue(raw: string | undefined | null): Promis
   if (dot < 1) return null;
   const userId = raw.slice(0, dot);
   const sig = raw.slice(dot + 1);
-  if (userId !== "owner" && userId !== "guest") return null;
+  if (!SESSION_USER_ID_RE.test(userId)) return null;
   const expected = await sign(userId);
   // constant-time comparison
   if (expected.length !== sig.length) return null;
@@ -52,7 +55,7 @@ export async function verifySessionValue(raw: string | undefined | null): Promis
     diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
   }
   if (diff !== 0) return null;
-  return userId as UserId;
+  return userId;
 }
 
 /** For Node runtime API routes. */

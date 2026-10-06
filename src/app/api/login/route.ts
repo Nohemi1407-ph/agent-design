@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionCookie, SESSION_COOKIE } from "@/lib/session";
-import type { UserId } from "@/lib/user-context";
+import { authenticateGuest } from "@/lib/guests";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,11 +19,14 @@ export async function POST(request: NextRequest) {
   }
 
   const adminPw = process.env.ADMIN_PASSWORD;
-  const guestPw = process.env.GUEST_PASSWORD;
 
-  let userId: UserId | null = null;
-  if (adminPw && password === adminPw) userId = "owner";
-  else if (guestPw && password === guestPw) userId = "guest";
+  let userId: string | null = null;
+  if (adminPw && password === adminPw) {
+    userId = "owner";
+  } else {
+    const guest = await authenticateGuest(password);
+    if (guest) userId = guest.id;
+  }
 
   if (!userId) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });

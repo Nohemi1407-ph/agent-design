@@ -9,8 +9,11 @@ interface TokenSummary {
   estimatedUsd: number;
 }
 
-interface GuestInfo {
+interface GuestSummary {
+  id: string;
   name: string;
+  createdAt: string;
+  archivedAt: string | null;
   used: number;
   cap: number;
   balance: number;
@@ -22,10 +25,7 @@ interface GuestInfo {
     reason: string;
     createdAt: string;
   }>;
-  tokens: {
-    guest: TokenSummary;
-    owner: TokenSummary;
-  };
+  tokens: TokenSummary;
 }
 
 function fmtUsd(n: number): string {
@@ -33,70 +33,104 @@ function fmtUsd(n: number): string {
 }
 
 export default function AdminPage() {
-  const [info, setInfo] = useState<GuestInfo | null>(null);
+  const [guests, setGuests] = useState<GuestSummary[] | null>(null);
+  const [ownerTokens, setOwnerTokens] = useState<TokenSummary | null>(null);
   const [forbidden, setForbidden] = useState(false);
-  const [amount, setAmount] = useState("100");
-  const [busy, setBusy] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [newGuestName, setNewGuestName] = useState("");
+  const [newGuestPassword, setNewGuestPassword] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [revealed, setRevealed] = useState<{ id: string; password: string } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState("");
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/guest");
+    const res = await fetch(
+      `/api/admin/guests${includeArchived ? "?includeArchived=1" : ""}`,
+    );
     if (res.status === 403) {
       setForbidden(true);
       return;
     }
     if (res.ok) {
       const data = await res.json();
-      setInfo(data);
-      setNameDraft(data.name || "");
+      setGuests(data.guests);
+      setOwnerTokens(data.ownerTokens);
     }
-  }, []);
+  }, [includeArchived]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function grant(e: React.FormEvent) {
+  async function createGuest(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
+    const name = newGuestName.trim();
+    if (!name) return;
+    setCreating(true);
     setMsg(null);
     try {
-      const n = parseInt(amount, 10);
-      if (!Number.isFinite(n) || n <= 0) {
-        setMsg("Invalid amount");
-        return;
-      }
-      const res = await fetch("/api/admin/grant", {
+      const res = await fetch("/api/admin/guests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: n }),
+        body: JSON.stringify({
+          name,
+          password: newGuestPassword.trim() || undefined,
+        }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         setMsg(data.error || "Failed");
         return;
       }
-      setMsg(`Granted ${n} kie.ai credits`);
+      setRevealed({ id: data.guest.id, password: data.plaintextPassword });
+      setNewGuestName("");
+      setNewGuestPassword("");
       await load();
     } finally {
-      setBusy(false);
+      setCreating(false);
     }
   }
 
-  async function saveName() {
-    const n = nameDraft.trim();
-    if (!n) return;
-    const res = await fetch("/api/admin/guest", {
+  async function rename(id: string, name: string) {
+    const res = await fetch(`/api/admin/guests/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: n }),
+      body: JSON.stringify({ name }),
     });
+    if (res.ok) await load();
+  }
+
+  async function regen(id: string) {
+    if (!confirm("Regenerate password? The old one stops working immediately.")) return;
+    const res = await fetch(`/api/admin/guests/${id}/regenerate-password`, {
+      method: "POST",
+    });
+    const data = await res.json();
     if (res.ok) {
-      setEditingName(false);
+      setRevealed({ id, password: data.plaintextPassword });
       await load();
     }
+  }
+
+  async function grant(id: string) {
+    const raw = prompt("Add how many kie.ai credits?", "100");
+    if (!raw) return;
+    const amount = parseInt(raw, 10);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    const res = await fetch(`/api/admin/guests/${id}/grant`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount }),
+    });
+    if (res.ok) await load();
+  }
+
+  async function toggleArchive(id: string, archived: boolean) {
+    const url = archived
+      ? `/api/admin/guests/${id}/unarchive`
+      : `/api/admin/guests/${id}/archive`;
+    const res = await fetch(url, { method: "POST" });
+    if (res.ok) await load();
   }
 
   if (forbidden) {
@@ -111,134 +145,234 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar title="Admin" showBack />
-      <div className="p-6 max-w-2xl mx-auto w-full space-y-6">
-        <section className="rounded-xl border border-border bg-surface/50 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold">
-              Guest:{" "}
-              {editingName ? (
-                <span className="inline-flex gap-2">
-                  <input
-                    autoFocus
-                    value={nameDraft}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    className="rounded border border-border bg-background px-2 py-1 text-sm"
-                  />
-                  <button onClick={saveName} className="text-xs px-2 py-1 rounded bg-accent text-white">
-                    Save
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingName(false);
-                      setNameDraft(info?.name || "");
-                    }}
-                    className="text-xs px-2 py-1 rounded border border-border"
-                  >
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                <>
-                  <span className="font-normal">{info?.name || "Invitado"}</span>
-                  <button
-                    onClick={() => setEditingName(true)}
-                    className="ml-2 text-xs text-accent underline"
-                  >
-                    edit
-                  </button>
-                </>
-              )}
-            </h2>
-          </div>
-          {!info ? (
-            <p className="text-sm text-foreground/60">Loading...</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <div className="text-foreground/60">Balance (kie)</div>
-                <div className="text-2xl font-semibold">{info.balance}</div>
-              </div>
-              <div>
-                <div className="text-foreground/60">Used (kie)</div>
-                <div className="text-2xl font-semibold">{info.used}</div>
-              </div>
-              <div>
-                <div className="text-foreground/60">Cap (kie)</div>
-                <div className="text-2xl font-semibold">{info.cap}</div>
-              </div>
+      <div className="p-6 max-w-4xl mx-auto w-full space-y-6">
+        {revealed && (
+          <div className="rounded-xl border border-accent bg-accent/10 p-4">
+            <div className="font-semibold mb-1">
+              New password for {revealed.id} — copy it now, it will not be shown again
             </div>
-          )}
-          <p className="mt-3 text-xs text-foreground/60">
-            Cap and balance are in REAL kie.ai credits (same unit as your kie.ai account).
-          </p>
-        </section>
+            <div className="flex items-center gap-2">
+              <code className="font-mono text-sm bg-background px-2 py-1 rounded border border-border select-all">
+                {revealed.password}
+              </code>
+              <button
+                className="text-xs px-2 py-1 rounded bg-accent text-white"
+                onClick={() => navigator.clipboard?.writeText(revealed.password)}
+              >
+                Copy
+              </button>
+              <button
+                className="text-xs px-2 py-1 rounded border border-border ml-auto"
+                onClick={() => setRevealed(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         <section className="rounded-xl border border-border bg-surface/50 p-5">
-          <h2 className="font-semibold mb-3">Add kie.ai credits to guest</h2>
-          <form onSubmit={grant} className="flex gap-2">
+          <h2 className="font-semibold mb-3">New guest</h2>
+          <form onSubmit={createGuest} className="flex flex-wrap gap-2">
             <input
-              type="number"
-              min="1"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+              value={newGuestName}
+              onChange={(e) => setNewGuestName(e.target.value)}
+              placeholder="Name"
+              className="flex-1 min-w-[160px] rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <input
+              value={newGuestPassword}
+              onChange={(e) => setNewGuestPassword(e.target.value)}
+              placeholder="Password (blank = auto)"
+              className="flex-1 min-w-[160px] rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
             />
             <button
               type="submit"
-              disabled={busy}
+              disabled={creating}
               className="rounded-lg bg-accent text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
-              Grant
+              + New guest
             </button>
           </form>
           {msg && <p className="text-sm mt-2 text-foreground/70">{msg}</p>}
         </section>
 
-        {info?.tokens && (
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">Guests ({guests?.length ?? 0})</h2>
+          <label className="text-xs text-foreground/70 inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={includeArchived}
+              onChange={(e) => setIncludeArchived(e.target.checked)}
+            />
+            Show archived
+          </label>
+        </div>
+
+        {!guests ? (
+          <p className="text-sm text-foreground/60">Loading...</p>
+        ) : guests.length === 0 ? (
+          <p className="text-sm text-foreground/60">No guests yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {guests.map((g) => (
+              <GuestCard
+                key={g.id}
+                guest={g}
+                onRename={(n) => rename(g.id, n)}
+                onRegen={() => regen(g.id)}
+                onGrant={() => grant(g.id)}
+                onArchive={() => toggleArchive(g.id, !!g.archivedAt)}
+              />
+            ))}
+          </div>
+        )}
+
+        {ownerTokens && (
           <section className="rounded-xl border border-border bg-surface/50 p-5">
-            <h2 className="font-semibold mb-3">Anthropic token spend</h2>
-            <div className="grid grid-cols-2 gap-6 text-sm">
-              {(["owner", "guest"] as const).map((who) => {
-                const t = info.tokens[who];
-                return (
-                  <div key={who}>
-                    <div className="text-foreground/60 capitalize mb-1">
-                      {who === "guest" ? info.name : "Owner"}
-                    </div>
-                    <div>Input: <span className="font-mono">{t.inputTokens.toLocaleString()}</span></div>
-                    <div>Output: <span className="font-mono">{t.outputTokens.toLocaleString()}</span></div>
-                    <div className="mt-1 font-semibold">≈ {fmtUsd(t.estimatedUsd)}</div>
-                  </div>
-                );
-              })}
+            <h2 className="font-semibold mb-3">Owner Anthropic token spend</h2>
+            <div className="text-sm">
+              <div>Input: <span className="font-mono">{ownerTokens.inputTokens.toLocaleString()}</span></div>
+              <div>Output: <span className="font-mono">{ownerTokens.outputTokens.toLocaleString()}</span></div>
+              <div className="mt-1 font-semibold">≈ {fmtUsd(ownerTokens.estimatedUsd)}</div>
             </div>
             <p className="mt-3 text-xs text-foreground/60">
               Claude Sonnet 4.5: $3/MTok input, $15/MTok output.
             </p>
           </section>
         )}
-
-        <section className="rounded-xl border border-border bg-surface/50 p-5">
-          <h2 className="font-semibold mb-3">Recent transactions</h2>
-          {info?.recent?.length ? (
-            <ul className="text-sm divide-y divide-border">
-              {info.recent.map((tx) => (
-                <li key={tx.id} className="py-2 flex justify-between gap-3">
-                  <span className="text-foreground/70">
-                    {new Date(tx.createdAt).toLocaleString()} · {tx.type}
-                  </span>
-                  <span className="font-mono">
-                    {tx.amount > 0 ? "+" : ""}
-                    {tx.amount}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-foreground/60">No activity yet.</p>
-          )}
-        </section>
       </div>
     </div>
+  );
+}
+
+function GuestCard({
+  guest,
+  onRename,
+  onRegen,
+  onGrant,
+  onArchive,
+}: {
+  guest: GuestSummary;
+  onRename: (name: string) => void;
+  onRegen: () => void;
+  onGrant: () => void;
+  onArchive: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(guest.name);
+  const archived = !!guest.archivedAt;
+
+  return (
+    <section
+      className={`rounded-xl border border-border bg-surface/50 p-5 ${archived ? "opacity-60" : ""}`}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1">
+          {editing ? (
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                className="rounded border border-border bg-background px-2 py-1 text-sm"
+              />
+              <button
+                onClick={() => {
+                  onRename(draft);
+                  setEditing(false);
+                }}
+                className="text-xs px-2 py-1 rounded bg-accent text-white"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setDraft(guest.name);
+                  setEditing(false);
+                }}
+                className="text-xs px-2 py-1 rounded border border-border"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-2">
+              <h3 className="font-semibold">{guest.name}</h3>
+              <button
+                onClick={() => setEditing(true)}
+                className="text-xs text-accent underline"
+              >
+                edit
+              </button>
+              {archived && (
+                <span className="text-xs text-foreground/60">(archived)</span>
+              )}
+            </div>
+          )}
+          <div className="text-xs text-foreground/50 font-mono mt-0.5">{guest.id}</div>
+        </div>
+        <div className="flex gap-2 flex-wrap justify-end">
+          <button
+            onClick={onRegen}
+            className="text-xs px-2 py-1 rounded border border-border"
+          >
+            Regenerate password
+          </button>
+          <button
+            onClick={onGrant}
+            className="text-xs px-2 py-1 rounded bg-accent text-white"
+          >
+            Add credits
+          </button>
+          <button
+            onClick={onArchive}
+            className="text-xs px-2 py-1 rounded border border-border"
+          >
+            {archived ? "Unarchive" : "Archive"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 text-sm mb-3">
+        <div>
+          <div className="text-foreground/60">Balance</div>
+          <div className="text-xl font-semibold">{guest.balance}</div>
+        </div>
+        <div>
+          <div className="text-foreground/60">Used</div>
+          <div className="text-xl font-semibold">{guest.used}</div>
+        </div>
+        <div>
+          <div className="text-foreground/60">Cap</div>
+          <div className="text-xl font-semibold">{guest.cap}</div>
+        </div>
+      </div>
+
+      <div className="text-xs text-foreground/70 mb-3">
+        Anthropic tokens: in {guest.tokens.inputTokens.toLocaleString()} / out{" "}
+        {guest.tokens.outputTokens.toLocaleString()} · ≈{" "}
+        <span className="font-semibold">${guest.tokens.estimatedUsd.toFixed(4)}</span>
+      </div>
+
+      {guest.recent.length > 0 && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-foreground/70">Recent credit tx</summary>
+          <ul className="mt-2 divide-y divide-border">
+            {guest.recent.map((tx) => (
+              <li key={tx.id} className="py-1.5 flex justify-between gap-3">
+                <span className="text-foreground/70">
+                  {new Date(tx.createdAt).toLocaleString()} · {tx.type}
+                </span>
+                <span className="font-mono">
+                  {tx.amount > 0 ? "+" : ""}
+                  {tx.amount}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
