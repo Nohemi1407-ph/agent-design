@@ -3,6 +3,7 @@ import { currentUserId } from "@/lib/user-context";
 import { db } from "@/lib/db";
 import { createGuest, listGuests, type Guest } from "@/lib/guests";
 import { getTokenSummary } from "@/lib/anthropic-usage";
+import { fetchKieBalance } from "@/lib/credits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,7 +60,21 @@ export async function GET(request: NextRequest) {
   const guests = await listGuests({ includeArchived });
   const summaries = await Promise.all(guests.map(summarizeGuest));
   const ownerTokens = await getTokenSummary("owner");
-  return NextResponse.json({ guests: summaries, ownerTokens });
+
+  // Owner's "available to allocate" = kie.ai balance - credits already
+  // committed to active (non-archived) guests. Each guest's current
+  // balance (cap - used) is a reserved slice of the owner's pool.
+  const activeGuests = await listGuests({ includeArchived: false });
+  const activeSummaries = await Promise.all(activeGuests.map(summarizeGuest));
+  const reserved = activeSummaries.reduce((sum, g) => sum + g.balance, 0);
+  const kieBalance = await fetchKieBalance();
+  const ownerPool = {
+    kieBalance,
+    reserved,
+    available: kieBalance != null ? Math.max(0, kieBalance - reserved) : null,
+  };
+
+  return NextResponse.json({ guests: summaries, ownerTokens, ownerPool });
 }
 
 export async function POST(request: NextRequest) {

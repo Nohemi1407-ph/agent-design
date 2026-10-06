@@ -35,6 +35,7 @@ function fmtUsd(n: number): string {
 export default function AdminPage() {
   const [guests, setGuests] = useState<GuestSummary[] | null>(null);
   const [ownerTokens, setOwnerTokens] = useState<TokenSummary | null>(null);
+  const [ownerPool, setOwnerPool] = useState<{ kieBalance: number | null; reserved: number; available: number | null } | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [newGuestName, setNewGuestName] = useState("");
@@ -55,6 +56,7 @@ export default function AdminPage() {
       const data = await res.json();
       setGuests(data.guests);
       setOwnerTokens(data.ownerTokens);
+      setOwnerPool(data.ownerPool ?? null);
     }
   }, [includeArchived]);
 
@@ -242,6 +244,29 @@ export default function AdminPage() {
               />
             ))}
           </div>
+        )}
+
+        {ownerPool && (
+          <section className="rounded-xl border border-border bg-surface/50 p-5">
+            <h2 className="font-semibold mb-3">Tu pool de créditos kie.ai</h2>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-xs text-foreground/60">Saldo kie.ai total</div>
+                <div className="font-mono text-xl mt-1">{ownerPool.kieBalance == null ? "—" : Math.floor(ownerPool.kieBalance).toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-xs text-foreground/60">Reservado para invitados</div>
+                <div className="font-mono text-xl mt-1">{Math.floor(ownerPool.reserved).toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-accent bg-accent/10 p-3">
+                <div className="text-xs text-foreground/60">Disponible para asignar</div>
+                <div className="font-mono text-xl mt-1 text-accent">{ownerPool.available == null ? "—" : Math.floor(ownerPool.available).toLocaleString()}</div>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-foreground/60">
+              Cuando asignas N créditos a un invitado, se reservan de tu pool. Si él gasta, kie.ai te cobra y a él se le descuentan. Si no gasta, siguen reservados.
+            </p>
+          </section>
         )}
 
         {ownerTokens && (
