@@ -391,6 +391,7 @@ export default function AdminPage() {
                 onResetKie={() => resetKey(g.id, "kie")}
                 onResetAnthropic={() => resetKey(g.id, "anthropic")}
                 onDelete={() => removeGuest(g.id, g.name)}
+                onKeysSaved={() => load()}
               />
             ))}
           </div>
@@ -442,6 +443,7 @@ function GuestCard({
   onResetKie,
   onResetAnthropic,
   onDelete,
+  onKeysSaved,
 }: {
   guest: GuestSummary;
   copied: boolean;
@@ -453,11 +455,48 @@ function GuestCard({
   onResetKie: () => void;
   onResetAnthropic: () => void;
   onDelete: () => void;
+  onKeysSaved: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(guest.name);
   const [kieBalance, setKieBalance] = useState<number | null | undefined>(undefined);
+  const [kieKeyInput, setKieKeyInput] = useState("");
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState("");
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [keysMsg, setKeysMsg] = useState<string | null>(null);
   const archived = !!guest.archivedAt;
+
+  async function saveKeys() {
+    const kie = kieKeyInput.trim();
+    const anthropic = anthropicKeyInput.trim();
+    if (!kie && !anthropic) {
+      setKeysMsg("Pega al menos una clave");
+      return;
+    }
+    setSavingKeys(true);
+    setKeysMsg(null);
+    try {
+      const res = await fetch(`/api/admin/guests/${guest.id}/keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kieApiKey: kie || undefined,
+          anthropicApiKey: anthropic || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setKeysMsg(data.error || "Error");
+        return;
+      }
+      setKieKeyInput("");
+      setAnthropicKeyInput("");
+      setKeysMsg("✓ Guardado");
+      onKeysSaved();
+    } finally {
+      setSavingKeys(false);
+    }
+  }
 
   useEffect(() => {
     if (!guest.hasKieKey) {
@@ -604,6 +643,45 @@ function GuestCard({
           </span>
         )}
       </div>
+
+      <details className="mb-3 rounded-lg border border-border bg-background/40 p-3 text-sm">
+        <summary className="cursor-pointer text-foreground/80 font-medium">
+          Pegar claves por el invitado
+        </summary>
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="block text-xs text-foreground/60 mb-1">Clave kie.ai</label>
+            <input
+              type="password"
+              value={kieKeyInput}
+              onChange={(e) => setKieKeyInput(e.target.value)}
+              placeholder={guest.hasKieKey ? "ya conectada — pega aquí para reemplazar" : "sk-..."}
+              className="w-full rounded border border-border bg-background px-2 py-1 text-sm font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-foreground/60 mb-1">Clave Anthropic</label>
+            <input
+              type="password"
+              value={anthropicKeyInput}
+              onChange={(e) => setAnthropicKeyInput(e.target.value)}
+              placeholder={guest.hasAnthropicKey ? "ya conectada — pega aquí para reemplazar" : "sk-ant-..."}
+              className="w-full rounded border border-border bg-background px-2 py-1 text-sm font-mono"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={saveKeys}
+              disabled={savingKeys || (!kieKeyInput.trim() && !anthropicKeyInput.trim())}
+              className="rounded bg-accent text-white px-3 py-1 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingKeys ? "Guardando…" : "Guardar"}
+            </button>
+            {keysMsg && <span className="text-xs text-foreground/70">{keysMsg}</span>}
+          </div>
+        </div>
+      </details>
 
       <div className="grid grid-cols-3 gap-4 text-sm mb-3">
         <div>
