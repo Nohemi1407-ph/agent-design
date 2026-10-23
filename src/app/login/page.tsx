@@ -6,6 +6,7 @@ import { Zap } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,15 +19,16 @@ export default function LoginPage() {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || "Invalid password");
+        setError(data.error || "Invalid credentials");
         setLoading(false);
         return;
       }
-      router.replace("/");
+      const data = await res.json().catch(() => ({}));
+      router.replace(data.redirect || "/");
       router.refresh();
     } catch {
       setError("Network error");
@@ -49,7 +51,16 @@ export default function LoginPage() {
         </div>
         <input
           autoFocus
+          type="text"
+          autoComplete="username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Usuario (admin)"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent mb-2"
+        />
+        <input
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"

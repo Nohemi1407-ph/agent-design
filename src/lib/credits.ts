@@ -18,8 +18,8 @@ export interface CreditsData {
   log: CreditLogEntry[];
 }
 
-export async function fetchKieBalance(): Promise<number | null> {
-  const apiKey = process.env.KIE_API_KEY;
+export async function fetchKieBalance(key?: string): Promise<number | null> {
+  const apiKey = key || process.env.KIE_API_KEY;
   if (!apiKey) return null;
   try {
     const res = await fetch(KIE_BALANCE_URL, {

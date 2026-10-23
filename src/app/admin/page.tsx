@@ -26,6 +26,7 @@ interface GuestSummary {
     createdAt: string;
   }>;
   tokens: TokenSummary;
+  hasKieKey: boolean;
 }
 
 function fmtUsd(n: number): string {
@@ -137,6 +138,12 @@ export default function AdminPage() {
     if (res.ok) await load();
   }
 
+  async function resetKey(id: string) {
+    if (!confirm("¿Resetear la kie.ai key del invitado? Tendrá que volver a conectar la suya.")) return;
+    const res = await fetch(`/api/admin/guests/${id}/kie-key`, { method: "DELETE" });
+    if (res.ok) await load();
+  }
+
   async function toggleArchive(id: string, archived: boolean) {
     const url = archived
       ? `/api/admin/guests/${id}/unarchive`
@@ -241,6 +248,7 @@ export default function AdminPage() {
                 onGrant={() => grant(g.id)}
                 onArchive={() => toggleArchive(g.id, !!g.archivedAt)}
                 onCopyInvite={() => copyInvite(g.id)}
+                onResetKey={() => resetKey(g.id)}
               />
             ))}
           </div>
@@ -265,6 +273,9 @@ export default function AdminPage() {
             </div>
             <p className="mt-3 text-xs text-foreground/60">
               Cuando asignas N créditos a un invitado, se reservan de tu pool. Si él gasta, kie.ai te cobra y a él se le descuentan. Si no gasta, siguen reservados.
+            </p>
+            <p className="mt-1 text-xs text-foreground/60">
+              Si el invitado conecta su propia key, no consume de tu pool.
             </p>
           </section>
         )}
@@ -295,6 +306,7 @@ function GuestCard({
   onGrant,
   onArchive,
   onCopyInvite,
+  onResetKey,
 }: {
   guest: GuestSummary;
   copied: boolean;
@@ -303,10 +315,31 @@ function GuestCard({
   onGrant: () => void;
   onArchive: () => void;
   onCopyInvite: () => void;
+  onResetKey: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(guest.name);
+  const [kieBalance, setKieBalance] = useState<number | null | undefined>(undefined);
   const archived = !!guest.archivedAt;
+
+  useEffect(() => {
+    if (!guest.hasKieKey) {
+      setKieBalance(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/guests/${guest.id}/kie-balance`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setKieBalance(data.balance ?? null);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [guest.id, guest.hasKieKey]);
 
   return (
     <section
@@ -376,6 +409,15 @@ function GuestCard({
           >
             Add credits
           </button>
+          {guest.hasKieKey && (
+            <button
+              onClick={onResetKey}
+              className="text-xs px-2 py-1 rounded border border-border"
+              title="Elimina la kie.ai key guardada del invitado"
+            >
+              Resetear key
+            </button>
+          )}
           <button
             onClick={onArchive}
             className="text-xs px-2 py-1 rounded border border-border"
@@ -383,6 +425,23 @@ function GuestCard({
             {archived ? "Unarchive" : "Archive"}
           </button>
         </div>
+      </div>
+
+      <div className="mb-3 text-xs">
+        {guest.hasKieKey ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 text-green-500 px-2 py-0.5">
+            ✓ Key conectada
+            {kieBalance != null && (
+              <span className="ml-1 font-mono text-foreground/80">
+                · {Math.floor(kieBalance).toLocaleString()} créditos
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-foreground/20 bg-foreground/5 text-foreground/60 px-2 py-0.5">
+            ✗ Sin key — usa pool del owner
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4 text-sm mb-3">

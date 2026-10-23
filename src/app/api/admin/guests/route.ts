@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { createGuest, listGuests, type Guest } from "@/lib/guests";
 import { getTokenSummary } from "@/lib/anthropic-usage";
 import { fetchKieBalance } from "@/lib/credits";
+import { hasGuestKieKey } from "@/lib/guest-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ async function requireOwner() {
 }
 
 async function summarizeGuest(g: Guest) {
-  const [usageAgg, grantAgg, recent, tokens] = await Promise.all([
+  const [usageAgg, grantAgg, recent, tokens, hasKieKey] = await Promise.all([
     db.creditTx.aggregate({
       where: { userId: g.id, type: "USAGE" },
       _sum: { amount: true },
@@ -35,6 +36,7 @@ async function summarizeGuest(g: Guest) {
       take: 10,
     }),
     getTokenSummary(g.id),
+    hasGuestKieKey(g.id).catch(() => false),
   ]);
   const used = Math.abs(usageAgg._sum.amount ?? 0);
   const cap = getGuestCap() + (grantAgg._sum.amount ?? 0);
@@ -49,6 +51,7 @@ async function summarizeGuest(g: Guest) {
     balance,
     recent,
     tokens,
+    hasKieKey,
   };
 }
 

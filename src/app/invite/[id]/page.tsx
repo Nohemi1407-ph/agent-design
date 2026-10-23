@@ -52,7 +52,8 @@ export default function InvitePage() {
         setLoading(false);
         return;
       }
-      router.replace("/");
+      const data = await res.json().catch(() => ({}));
+      router.replace(data.redirect || "/");
       router.refresh();
     } catch {
       setError("Network error.");

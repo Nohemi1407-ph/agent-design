@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionCookie, SESSION_COOKIE } from "@/lib/session";
 import { authenticateGuest } from "@/lib/guests";
+import { hasGuestKieKey } from "@/lib/guest-secrets";
+
+const DEFAULT_ADMIN_USERNAME = "Nohemi1407";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  let body: { password?: string };
+  let body: { username?: string; password?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  const username = (body.username || "").toString().trim();
   const password = (body.password || "").toString();
   if (!password) {
     return NextResponse.json({ error: "Password required" }, { status: 400 });
   }
 
   const adminPw = process.env.ADMIN_PASSWORD;
+  const adminUser = process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME;
 
   let userId: string | null = null;
-  if (adminPw && password === adminPw) {
+  if (adminPw && username === adminUser && password === adminPw) {
     userId = "owner";
   } else {
     const guest = await authenticateGuest(password);
@@ -29,11 +34,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (!userId) {
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+
+  let redirect = "/";
+  if (userId !== "owner") {
+    const has = await hasGuestKieKey(userId).catch(() => false);
+    if (!has) redirect = "/connect";
   }
 
   const value = await createSessionCookie(userId);
-  const res = NextResponse.json({ ok: true, userId });
+  const res = NextResponse.json({ ok: true, userId, redirect });
   res.cookies.set(SESSION_COOKIE, value, {
     httpOnly: true,
     sameSite: "lax",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateGuestWithPin, isValidGuestId } from "@/lib/guests";
 import { createSessionCookie, SESSION_COOKIE } from "@/lib/session";
+import { hasGuestKieKey } from "@/lib/guest-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,8 +25,9 @@ export async function POST(
   if (!guest) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
+  const has = await hasGuestKieKey(guest.id).catch(() => false);
   const value = await createSessionCookie(guest.id);
-  const res = NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true, redirect: has ? "/" : "/connect" });
   res.cookies.set(SESSION_COOKIE, value, {
     httpOnly: true,
     sameSite: "lax",

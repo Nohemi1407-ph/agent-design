@@ -9,8 +9,14 @@ import { uploadToR2 } from "@/lib/r2";
 import { readDataSafe, writeData } from "@/lib/data";
 import { currentUserId } from "@/lib/user-context";
 import { db } from "@/lib/db";
+import { getGuestKieKey } from "@/lib/guest-secrets";
 
 const OWNER_ID = "owner";
+
+async function resolveApiKey(userId: string): Promise<string | null> {
+  if (userId === "owner") return process.env.KIE_API_KEY || null;
+  return getGuestKieKey(userId);
+}
 
 function getGuestCap(): number {
   const raw = process.env.GUEST_CREDIT_CAP;
@@ -201,9 +207,18 @@ export interface GenerateImageError {
 export async function generateImage(
   body: GenerateImageInput,
 ): Promise<GenerateImageResult | GenerateImageError> {
-  const apiKey = process.env.KIE_API_KEY;
+  const userId = await currentUserId();
+  const apiKey = await resolveApiKey(userId);
   if (!apiKey) {
-    return { ok: false, status: 503, error: "KIE_API_KEY not configured. Add it to .env.local" };
+    if (userId === "owner") {
+      return { ok: false, status: 503, error: "KIE_API_KEY not configured. Add it to .env.local" };
+    }
+    return {
+      ok: false,
+      status: 428,
+      code: "NO_KEY",
+      error: "No kie.ai key connected. Visit /connect to add one.",
+    };
   }
 
   const prompt = body.prompt?.trim();
@@ -242,8 +257,12 @@ export async function generateImage(
   const input: Record<string, unknown> = { prompt, aspect_ratio: aspectRatio, resolution };
   if (isImageToImage) input.input_urls = inputUrls;
 
-  const userId = await currentUserId();
   const slideCost = SLIDE_COST[resolution as keyof typeof SLIDE_COST] ?? SLIDE_COST["1K"];
+  // When a guest has their own key, their generation hits their own kie.ai
+  // account — don't count against the owner's pool / guest cap.
+  // If we got here as a non-owner, resolveApiKey returned the guest's own
+  // kie.ai key — all usage hits their account, not the owner's pool.
+  const guestUsingOwnKey = userId !== "owner";
   await getBalance(userId); // maintained for parity
 
   const minRequired =
@@ -254,7 +273,7 @@ export async function generateImage(
   // Guest credit cap enforcement — in REAL kie.ai credit units.
   // Pre-check uses the conservative per-resolution reserve so we don't start a
   // call we can't afford.
-  if (userId === "guest") {
+  if (userId === "guest" && !guestUsingOwnKey) {
     const [usage, cap] = await Promise.all([getGuestUsage(), getGuestEffectiveCap()]);
     if (cap - usage < minRequired) {
       return {
@@ -267,7 +286,7 @@ export async function generateImage(
   }
   void OWNER_ID;
 
-  const balanceBefore = await fetchKieBalance();
+  const balanceBefore = await fetchKieBalance(apiKey);
 
   if (balanceBefore !== null && balanceBefore < minRequired) {
     return {
@@ -324,7 +343,7 @@ export async function generateImage(
   }
 
   const logFailedAttempt = async (reason: string) => {
-    const balanceNow = await fetchKieBalance();
+    const balanceNow = await fetchKieBalance(apiKey);
     const spent =
       balanceBefore !== null && balanceNow !== null
         ? Math.max(0, balanceBefore - balanceNow)
@@ -370,7 +389,7 @@ export async function generateImage(
   const filename = `${crypto.randomUUID()}.png`;
   const publicUrl = await uploadToR2(filename, buffer, "image/png");
 
-  const balanceAfter = await fetchKieBalance();
+  const balanceAfter = await fetchKieBalance(apiKey);
   const creditsUsed =
     balanceBefore !== null && balanceAfter !== null
       ? Math.max(0, balanceBefore - balanceAfter)

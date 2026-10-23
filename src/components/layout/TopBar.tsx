@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Settings, Zap, LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CreditsBadge } from "./CreditsBadge";
 
@@ -26,6 +26,26 @@ export function TopBar({
   const [editValue, setEditValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (pathname === "/connect" || pathname === "/login") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (!data.isAdmin && data.hasKieKey === false) {
+          router.replace("/connect");
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, router]);
 
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
