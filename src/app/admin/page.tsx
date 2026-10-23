@@ -27,6 +27,16 @@ interface GuestSummary {
   }>;
   tokens: TokenSummary;
   hasKieKey: boolean;
+  hasAnthropicKey: boolean;
+  status: "pending" | "active";
+}
+
+interface SignupTokenRow {
+  token: string;
+  createdAt: string;
+  expiresAt: string;
+  maxUses: number;
+  uses: number;
 }
 
 function fmtUsd(n: number): string {
@@ -44,6 +54,8 @@ export default function AdminPage() {
   const [revealed, setRevealed] = useState<{ id: string; pin: string } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [signupTokens, setSignupTokens] = useState<SignupTokenRow[]>([]);
+  const [signupCopied, setSignupCopied] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(
@@ -61,9 +73,18 @@ export default function AdminPage() {
     }
   }, [includeArchived]);
 
+  const loadSignupTokens = useCallback(async () => {
+    const res = await fetch("/api/admin/signup-tokens");
+    if (res.ok) {
+      const data = await res.json();
+      setSignupTokens(data.tokens || []);
+    }
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadSignupTokens();
+  }, [load, loadSignupTokens]);
 
   async function createGuest(e: React.FormEvent) {
     e.preventDefault();
@@ -120,9 +141,7 @@ export default function AdminPage() {
       await navigator.clipboard?.writeText(url);
       setCopied(id);
       setTimeout(() => setCopied((c) => (c === id ? null : c)), 1500);
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   }
 
   async function grant(id: string) {
@@ -138,9 +157,11 @@ export default function AdminPage() {
     if (res.ok) await load();
   }
 
-  async function resetKey(id: string) {
-    if (!confirm("¿Resetear la kie.ai key del invitado? Tendrá que volver a conectar la suya.")) return;
-    const res = await fetch(`/api/admin/guests/${id}/kie-key`, { method: "DELETE" });
+  async function resetKey(id: string, which: "kie" | "anthropic") {
+    const label = which === "kie" ? "kie.ai" : "Anthropic";
+    if (!confirm(`¿Resetear la ${label} key del invitado? Tendrá que volver a conectar la suya.`)) return;
+    const path = which === "kie" ? "kie-key" : "anthropic-key";
+    const res = await fetch(`/api/admin/guests/${id}/${path}`, { method: "DELETE" });
     if (res.ok) await load();
   }
 
@@ -152,6 +173,43 @@ export default function AdminPage() {
     if (res.ok) await load();
   }
 
+  async function removeGuest(id: string, name: string) {
+    if (!confirm(`¿Eliminar al invitado "${name}" (${id})? Esto borra sus créditos, keys, archivos y uso. No se puede deshacer.`)) return;
+    const res = await fetch(`/api/admin/guests/${id}/delete`, { method: "POST" });
+    if (res.ok) await load();
+  }
+
+  async function approve(id: string) {
+    const res = await fetch(`/api/admin/guests/${id}/approve`, { method: "POST" });
+    if (res.ok) await load();
+  }
+
+  async function reject(id: string, name: string) {
+    if (!confirm(`¿Rechazar la solicitud de "${name}"? Se elimina su registro.`)) return;
+    const res = await fetch(`/api/admin/guests/${id}/reject`, { method: "POST" });
+    if (res.ok) await load();
+  }
+
+  async function createSignupToken() {
+    const res = await fetch("/api/admin/signup-tokens", { method: "POST" });
+    if (res.ok) await loadSignupTokens();
+  }
+
+  async function revokeSignupToken(token: string) {
+    if (!confirm("¿Revocar este enlace de registro?")) return;
+    const res = await fetch(`/api/admin/signup-tokens/${token}`, { method: "DELETE" });
+    if (res.ok) await loadSignupTokens();
+  }
+
+  async function copySignupLink(token: string) {
+    const url = `${window.location.origin}/signup/${token}`;
+    try {
+      await navigator.clipboard?.writeText(url);
+      setSignupCopied(token);
+      setTimeout(() => setSignupCopied((c) => (c === token ? null : c)), 1500);
+    } catch {}
+  }
+
   if (forbidden) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -160,6 +218,9 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  const pending = guests?.filter((g) => g.status === "pending") ?? [];
+  const active = guests?.filter((g) => g.status !== "pending") ?? [];
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -220,8 +281,87 @@ export default function AdminPage() {
           {msg && <p className="text-sm mt-2 text-foreground/70">{msg}</p>}
         </section>
 
+        <section className="rounded-xl border border-border bg-surface/50 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold">Signup link</h2>
+            <button
+              onClick={createSignupToken}
+              className="text-sm px-3 py-1.5 rounded bg-accent text-white"
+            >
+              Generate new signup link
+            </button>
+          </div>
+          {signupTokens.length === 0 ? (
+            <p className="text-sm text-foreground/60">
+              Sin enlaces activos. Genera uno para que alguien pueda registrarse.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border text-sm">
+              {signupTokens.map((t) => {
+                const expired = new Date(t.expiresAt).getTime() < Date.now();
+                const exhausted = t.uses >= t.maxUses;
+                const url = typeof window !== "undefined"
+                  ? `${window.location.origin}/signup/${t.token}`
+                  : `/signup/${t.token}`;
+                return (
+                  <li key={t.token} className="py-3 flex items-center gap-3 flex-wrap">
+                    <code className="font-mono text-xs bg-background px-2 py-1 rounded border border-border flex-1 min-w-[220px] truncate">
+                      {url}
+                    </code>
+                    <span className="text-xs text-foreground/60">
+                      {t.uses}/{t.maxUses} usos
+                      {expired ? " · expirado" : ""}
+                      {exhausted && !expired ? " · agotado" : ""}
+                    </span>
+                    <button
+                      onClick={() => copySignupLink(t.token)}
+                      className="text-xs px-2 py-1 rounded border border-border"
+                    >
+                      {signupCopied === t.token ? "Copied!" : "Copy"}
+                    </button>
+                    <button
+                      onClick={() => revokeSignupToken(t.token)}
+                      className="text-xs px-2 py-1 rounded border border-red-500/40 text-red-400"
+                    >
+                      Revoke
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        {pending.length > 0 && (
+          <section className="rounded-xl border border-yellow-500/40 bg-yellow-500/5 p-5">
+            <h2 className="font-semibold mb-3">Pending approval ({pending.length})</h2>
+            <ul className="divide-y divide-border">
+              {pending.map((g) => (
+                <li key={g.id} className="py-3 flex items-center gap-3 flex-wrap">
+                  <div className="flex-1">
+                    <div className="font-medium">{g.name}</div>
+                    <div className="text-xs text-foreground/50 font-mono">{g.id}</div>
+                  </div>
+                  <button
+                    onClick={() => approve(g.id)}
+                    className="text-sm px-3 py-1.5 rounded bg-green-600 text-white"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => reject(g.id, g.name)}
+                    className="text-sm px-3 py-1.5 rounded border border-red-500/40 text-red-400"
+                  >
+                    Reject
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Guests ({guests?.length ?? 0})</h2>
+          <h2 className="font-semibold">Guests ({active.length})</h2>
           <label className="text-xs text-foreground/70 inline-flex items-center gap-1">
             <input
               type="checkbox"
@@ -234,11 +374,11 @@ export default function AdminPage() {
 
         {!guests ? (
           <p className="text-sm text-foreground/60">Loading...</p>
-        ) : guests.length === 0 ? (
+        ) : active.length === 0 ? (
           <p className="text-sm text-foreground/60">No guests yet.</p>
         ) : (
           <div className="space-y-4">
-            {guests.map((g) => (
+            {active.map((g) => (
               <GuestCard
                 key={g.id}
                 guest={g}
@@ -248,7 +388,9 @@ export default function AdminPage() {
                 onGrant={() => grant(g.id)}
                 onArchive={() => toggleArchive(g.id, !!g.archivedAt)}
                 onCopyInvite={() => copyInvite(g.id)}
-                onResetKey={() => resetKey(g.id)}
+                onResetKie={() => resetKey(g.id, "kie")}
+                onResetAnthropic={() => resetKey(g.id, "anthropic")}
+                onDelete={() => removeGuest(g.id, g.name)}
               />
             ))}
           </div>
@@ -271,12 +413,6 @@ export default function AdminPage() {
                 <div className="font-mono text-xl mt-1 text-accent">{ownerPool.available == null ? "—" : Math.floor(ownerPool.available).toLocaleString()}</div>
               </div>
             </div>
-            <p className="mt-3 text-xs text-foreground/60">
-              Cuando asignas N créditos a un invitado, se reservan de tu pool. Si él gasta, kie.ai te cobra y a él se le descuentan. Si no gasta, siguen reservados.
-            </p>
-            <p className="mt-1 text-xs text-foreground/60">
-              Si el invitado conecta su propia key, no consume de tu pool.
-            </p>
           </section>
         )}
 
@@ -288,9 +424,6 @@ export default function AdminPage() {
               <div>Output: <span className="font-mono">{ownerTokens.outputTokens.toLocaleString()}</span></div>
               <div className="mt-1 font-semibold">≈ {fmtUsd(ownerTokens.estimatedUsd)}</div>
             </div>
-            <p className="mt-3 text-xs text-foreground/60">
-              Claude Sonnet 4.5: $3/MTok input, $15/MTok output.
-            </p>
           </section>
         )}
       </div>
@@ -306,7 +439,9 @@ function GuestCard({
   onGrant,
   onArchive,
   onCopyInvite,
-  onResetKey,
+  onResetKie,
+  onResetAnthropic,
+  onDelete,
 }: {
   guest: GuestSummary;
   copied: boolean;
@@ -315,7 +450,9 @@ function GuestCard({
   onGrant: () => void;
   onArchive: () => void;
   onCopyInvite: () => void;
-  onResetKey: () => void;
+  onResetKie: () => void;
+  onResetAnthropic: () => void;
+  onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(guest.name);
@@ -411,11 +548,20 @@ function GuestCard({
           </button>
           {guest.hasKieKey && (
             <button
-              onClick={onResetKey}
+              onClick={onResetKie}
               className="text-xs px-2 py-1 rounded border border-border"
               title="Elimina la kie.ai key guardada del invitado"
             >
-              Resetear key
+              Reset kie
+            </button>
+          )}
+          {guest.hasAnthropicKey && (
+            <button
+              onClick={onResetAnthropic}
+              className="text-xs px-2 py-1 rounded border border-border"
+              title="Elimina la Anthropic key guardada del invitado"
+            >
+              Reset anthropic
             </button>
           )}
           <button
@@ -424,22 +570,37 @@ function GuestCard({
           >
             {archived ? "Unarchive" : "Archive"}
           </button>
+          <button
+            onClick={onDelete}
+            className="text-xs px-2 py-1 rounded border border-red-500/40 bg-red-500/10 text-red-400"
+          >
+            Eliminar
+          </button>
         </div>
       </div>
 
-      <div className="mb-3 text-xs">
+      <div className="mb-3 text-xs flex gap-2 flex-wrap">
         {guest.hasKieKey ? (
           <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 text-green-500 px-2 py-0.5">
-            ✓ Key conectada
+            ✓ kie.ai
             {kieBalance != null && (
               <span className="ml-1 font-mono text-foreground/80">
-                · {Math.floor(kieBalance).toLocaleString()} créditos
+                · {Math.floor(kieBalance).toLocaleString()}
               </span>
             )}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full border border-foreground/20 bg-foreground/5 text-foreground/60 px-2 py-0.5">
-            ✗ Sin key — usa pool del owner
+            ✗ kie.ai
+          </span>
+        )}
+        {guest.hasAnthropicKey ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 text-green-500 px-2 py-0.5">
+            ✓ Anthropic
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-foreground/20 bg-foreground/5 text-foreground/60 px-2 py-0.5">
+            ✗ Anthropic
           </span>
         )}
       </div>

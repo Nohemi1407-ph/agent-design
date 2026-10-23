@@ -16,6 +16,7 @@ import { generateImage } from "@/lib/generate-image";
 import type { AspectRatio } from "@/types/carousel";
 import { currentUserId } from "@/lib/user-context";
 import { logTokenUsage } from "@/lib/anthropic-usage";
+import { getGuestAnthropicKey } from "@/lib/guest-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -283,9 +284,21 @@ async function executeTool(
 }
 
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+  const uid = await currentUserId();
+  let apiKey: string | null | undefined;
+  if (uid === "owner") {
+    apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+    }
+  } else {
+    apiKey = await getGuestAnthropicKey(uid).catch(() => null);
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Falta Anthropic API key. Conéctala en /connect." },
+        { status: 428 },
+      );
+    }
   }
 
   let body: {

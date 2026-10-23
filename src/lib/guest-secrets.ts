@@ -6,7 +6,8 @@ const DATA_DIR = path.resolve(process.cwd(), "data");
 const FILE = path.join(DATA_DIR, "guest_secrets.json");
 
 interface Entry {
-  kieApiKey: string; // encrypted blob: `${iv}:${tag}:${ciphertext}` base64
+  kieApiKey?: string; // encrypted blob: `${iv}:${tag}:${ciphertext}` base64
+  anthropicApiKey?: string; // encrypted blob
   updatedAt: string;
 }
 interface Store {
@@ -71,14 +72,20 @@ export async function getGuestKieKey(guestId: string): Promise<string | null> {
 
 export async function setGuestKieKey(guestId: string, plaintext: string): Promise<void> {
   const s = await readStore();
-  s[guestId] = { kieApiKey: encrypt(plaintext), updatedAt: new Date().toISOString() };
+  s[guestId] = {
+    ...(s[guestId] ?? {}),
+    kieApiKey: encrypt(plaintext),
+    updatedAt: new Date().toISOString(),
+  };
   await writeStore(s);
 }
 
 export async function deleteGuestKieKey(guestId: string): Promise<void> {
   const s = await readStore();
   if (s[guestId]) {
-    delete s[guestId];
+    delete s[guestId].kieApiKey;
+    s[guestId].updatedAt = new Date().toISOString();
+    if (!s[guestId].kieApiKey && !s[guestId].anthropicApiKey) delete s[guestId];
     await writeStore(s);
   }
 }
@@ -86,4 +93,44 @@ export async function deleteGuestKieKey(guestId: string): Promise<void> {
 export async function hasGuestKieKey(guestId: string): Promise<boolean> {
   const s = await readStore();
   return !!s[guestId]?.kieApiKey;
+}
+
+export async function getGuestAnthropicKey(guestId: string): Promise<string | null> {
+  const s = await readStore();
+  const e = s[guestId];
+  if (!e?.anthropicApiKey) return null;
+  return decrypt(e.anthropicApiKey);
+}
+
+export async function setGuestAnthropicKey(guestId: string, plaintext: string): Promise<void> {
+  const s = await readStore();
+  s[guestId] = {
+    ...(s[guestId] ?? {}),
+    anthropicApiKey: encrypt(plaintext),
+    updatedAt: new Date().toISOString(),
+  };
+  await writeStore(s);
+}
+
+export async function deleteGuestAnthropicKey(guestId: string): Promise<void> {
+  const s = await readStore();
+  if (s[guestId]) {
+    delete s[guestId].anthropicApiKey;
+    s[guestId].updatedAt = new Date().toISOString();
+    if (!s[guestId].kieApiKey && !s[guestId].anthropicApiKey) delete s[guestId];
+    await writeStore(s);
+  }
+}
+
+export async function hasGuestAnthropicKey(guestId: string): Promise<boolean> {
+  const s = await readStore();
+  return !!s[guestId]?.anthropicApiKey;
+}
+
+export async function deleteGuestSecrets(guestId: string): Promise<void> {
+  const s = await readStore();
+  if (s[guestId]) {
+    delete s[guestId];
+    await writeStore(s);
+  }
 }

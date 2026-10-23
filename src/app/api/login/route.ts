@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionCookie, SESSION_COOKIE } from "@/lib/session";
 import { authenticateGuest } from "@/lib/guests";
-import { hasGuestKieKey } from "@/lib/guest-secrets";
+import { hasGuestKieKey, hasGuestAnthropicKey } from "@/lib/guest-secrets";
 
 const DEFAULT_ADMIN_USERNAME = "Nohemi1407";
 
@@ -39,8 +39,11 @@ export async function POST(request: NextRequest) {
 
   let redirect = "/";
   if (userId !== "owner") {
-    const has = await hasGuestKieKey(userId).catch(() => false);
-    if (!has) redirect = "/connect";
+    const [hasKie, hasAnthropic] = await Promise.all([
+      hasGuestKieKey(userId).catch(() => false),
+      hasGuestAnthropicKey(userId).catch(() => false),
+    ]);
+    if (!hasKie || !hasAnthropic) redirect = "/connect";
   }
 
   const value = await createSessionCookie(userId);

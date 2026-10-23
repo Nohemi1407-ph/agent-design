@@ -37,7 +37,7 @@ export function TopBar({
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-        if (!data.isAdmin && data.hasKieKey === false) {
+        if (!data.isAdmin && (data.hasKieKey === false || data.hasAnthropicKey === false)) {
           router.replace("/connect");
         }
       } catch {}

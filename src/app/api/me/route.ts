@@ -3,7 +3,7 @@ import { getBalance } from "@/lib/credits-ledger";
 import { currentUserId } from "@/lib/user-context";
 import { db } from "@/lib/db";
 import { getGuest } from "@/lib/guests";
-import { hasGuestKieKey } from "@/lib/guest-secrets";
+import { hasGuestKieKey, hasGuestAnthropicKey } from "@/lib/guest-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,9 +22,13 @@ export async function GET() {
   let cap: number | null = null;
   let name = "Owner";
   let hasKieKey = isAdmin ? !!process.env.KIE_API_KEY : false;
+  let hasAnthropicKey = isAdmin
+    ? !!process.env.ANTHROPIC_API_KEY
+    : false;
 
   if (!isAdmin) {
     hasKieKey = await hasGuestKieKey(userId).catch(() => false);
+    hasAnthropicKey = await hasGuestAnthropicKey(userId).catch(() => false);
     const [usageAgg, grantAgg, guest] = await Promise.all([
       db.creditTx
         .aggregate({ where: { userId, type: "USAGE" }, _sum: { amount: true } })
@@ -48,7 +52,7 @@ export async function GET() {
     name,
     role: isAdmin ? "ADMIN" : "GUEST",
     isAdmin,
-    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    hasAnthropicKey,
     balance,
     cap,
     hasKieKey,

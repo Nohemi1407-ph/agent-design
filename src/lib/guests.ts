@@ -16,6 +16,7 @@ export interface Guest {
   pin?: string;
   createdAt: string;
   archivedAt?: string;
+  status?: "pending" | "active";
 }
 
 interface Store {
@@ -181,9 +182,59 @@ export async function authenticateGuest(password: string): Promise<Guest | null>
   const hash = sha256(password);
   const guests = await listGuests({ includeArchived: false });
   for (const g of guests) {
-    if (g.passwordHash && g.passwordHash === hash) return g;
+    if (g.passwordHash && g.passwordHash === hash) {
+      if (g.status === "pending") return null;
+      return g;
+    }
   }
   return null;
+}
+
+export async function createPendingGuest(input: {
+  name: string;
+  pin: string;
+}): Promise<Guest> {
+  const name = (input.name || "").trim().slice(0, 60);
+  if (!name) throw new Error("Name required");
+  const pin = (input.pin || "").trim();
+  if (!/^\d{6}$/.test(pin)) throw new Error("PIN must be 6 digits");
+  return await mutex.runExclusive(async () => {
+    const store = await loadStore();
+    let id = randomGuestId();
+    while (store.guests.some((g) => g.id === id)) id = randomGuestId();
+    const guest: Guest = {
+      id,
+      name,
+      pin: sha256(pin),
+      createdAt: new Date().toISOString(),
+      status: "pending",
+    };
+    store.guests.push(guest);
+    await writeStore(store);
+    return guest;
+  });
+}
+
+export async function approveGuest(id: string): Promise<Guest | null> {
+  return await mutex.runExclusive(async () => {
+    const store = await loadStore();
+    const g = store.guests.find((x) => x.id === id);
+    if (!g) return null;
+    g.status = "active";
+    await writeStore(store);
+    return g;
+  });
+}
+
+export async function deleteGuest(id: string): Promise<boolean> {
+  return await mutex.runExclusive(async () => {
+    const store = await loadStore();
+    const idx = store.guests.findIndex((x) => x.id === id);
+    if (idx === -1) return false;
+    store.guests.splice(idx, 1);
+    await writeStore(store);
+    return true;
+  });
 }
 
 export async function authenticateGuestWithPin(
@@ -196,5 +247,6 @@ export async function authenticateGuestWithPin(
   if (!g || g.archivedAt) return null;
   if (!g.pin) return null;
   if (g.pin !== sha256(pin)) return null;
+  if (g.status === "pending") return null;
   return g;
 }

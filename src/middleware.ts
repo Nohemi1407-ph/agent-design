@@ -10,6 +10,8 @@ export async function middleware(req: NextRequest) {
     PUBLIC_PATHS.has(pathname) ||
     pathname.startsWith("/invite/") ||
     pathname.startsWith("/api/invite/") ||
+    pathname.startsWith("/signup/") ||
+    pathname.startsWith("/api/signup/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     /\.[a-zA-Z0-9]+$/.test(pathname)
