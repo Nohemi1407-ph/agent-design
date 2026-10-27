@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionCookie, SESSION_COOKIE } from "@/lib/session";
-import { authenticateGuest } from "@/lib/guests";
+import {
+  authenticateGuest,
+  authenticateGuestWithPin,
+  listGuests,
+} from "@/lib/guests";
 import { hasGuestKieKey, hasGuestAnthropicKey } from "@/lib/guest-secrets";
 
 const DEFAULT_ADMIN_USERNAME = "Nohemi1407";
@@ -29,8 +33,20 @@ export async function POST(request: NextRequest) {
   if (adminPw && username === adminUser && password === adminPw) {
     userId = "owner";
   } else {
+    // Try legacy guest password first (back-compat).
     const guest = await authenticateGuest(password);
     if (guest) userId = guest.id;
+    // Fall back: treat password as PIN (6-digit) and try every active guest.
+    if (!userId && /^\d{4,8}$/.test(password)) {
+      const allGuests = await listGuests({ includeArchived: false });
+      for (const g of allGuests) {
+        const match = await authenticateGuestWithPin(g.id, password);
+        if (match) {
+          userId = match.id;
+          break;
+        }
+      }
+    }
   }
 
   if (!userId) {
