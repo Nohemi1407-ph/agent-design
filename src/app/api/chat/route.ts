@@ -24,6 +24,12 @@ export const maxDuration = 300;
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
 const FALLBACK_MODEL = "claude-3-5-sonnet-20241022";
+const FALLBACK_MODELS = [
+  "claude-3-5-sonnet-20241022",
+  "claude-3-5-sonnet-latest",
+  "claude-3-5-haiku-20241022",
+  "claude-3-5-haiku-latest",
+];
 
 function isModelNotAvailableError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
@@ -433,17 +439,25 @@ export async function POST(request: NextRequest) {
 
       let activeModel = MODEL;
       let visionDisabled = false;
+      // Build an exhaustive model-fallback list once, starting with the
+      // configured primary, then every known-good fallback.
+      const triedModels = new Set<string>();
+      const nextModel = (current: string): string | null => {
+        for (const m of FALLBACK_MODELS) {
+          if (m !== current && !triedModels.has(m)) return m;
+        }
+        return null;
+      };
       try {
         for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
           let stream: ReturnType<typeof client.messages.stream>;
           let finalMsg: Anthropic.Message;
-          // Up to 2 attempts on the first iteration to recover from
-          // (a) model-not-available on the guest's tier, and
-          // (b) vision-not-supported on the guest's tier.
           let attempt = 0;
+          const MAX_ATTEMPTS = 6;
           // eslint-disable-next-line no-constant-condition
           while (true) {
             try {
+              triedModels.add(activeModel);
               stream = client.messages.stream({
                 model: activeModel,
                 max_tokens: 8192,
@@ -466,15 +480,23 @@ export async function POST(request: NextRequest) {
             } catch (err) {
               // Only attempt fallbacks on the first outer iteration and only
               // when we haven't yet produced text.
-              if (iter !== 0 || attempt >= 2 || fullText.length > 0) throw err;
-              if (isModelNotAvailableError(err) && activeModel !== FALLBACK_MODEL) {
-                console.warn(
-                  `[chat] model ${activeModel} unavailable for user, falling back to ${FALLBACK_MODEL}`,
-                  err instanceof Error ? err.message : err,
-                );
-                activeModel = FALLBACK_MODEL;
-                attempt++;
-                continue;
+              if (iter !== 0 || attempt >= MAX_ATTEMPTS || fullText.length > 0) throw err;
+              if (isModelNotAvailableError(err)) {
+                const next = nextModel(activeModel);
+                if (next) {
+                  console.warn(
+                    `[chat] model ${activeModel} unavailable, trying ${next}`,
+                    err instanceof Error ? err.message : err,
+                  );
+                  send({
+                    type: "token",
+                    text: `_(cambiando a ${next} porque tu plan no tiene acceso al modelo anterior)_\n`,
+                  });
+                  activeModel = next;
+                  attempt++;
+                  continue;
+                }
+                throw err;
               }
               if (isVisionUnsupportedError(err) && !visionDisabled && refBlocks.length > 0) {
                 console.warn(
@@ -556,10 +578,25 @@ export async function POST(request: NextRequest) {
             : isModelNotAvailableError(err)
               ? "ANTHROPIC_MODEL_UNAVAILABLE"
               : undefined;
+        // Surface the error inline as a token so the user sees SOMETHING
+        // instead of silence when the SSE error event isn't rendered.
+        const userMsg =
+          code === "ANTHROPIC_AUTH_FAILED"
+            ? "⚠️ Tu clave Anthropic no autoriza. Ve a /connect para reconectarla."
+            : code === "ANTHROPIC_MODEL_UNAVAILABLE"
+              ? `⚠️ Tu plan de Anthropic no tiene acceso a ningún modelo compatible. Prueba con una clave de un plan Build/Scale. Error: ${msg}`
+              : `⚠️ Error del chat: ${msg}`;
         try {
+          send({ type: "token", text: `\n\n${userMsg}\n` });
+          send({ type: "result", text: fullText + "\n\n" + userMsg });
           controller.enqueue(
             encoder.encode(
               `event: error\ndata: ${JSON.stringify({ error: msg, code, status })}\n\n`,
+            ),
+          );
+          controller.enqueue(
+            encoder.encode(
+              `event: done\ndata: ${JSON.stringify({ sessionId: resolvedSessionId, exitCode: 1 })}\n\n`,
             ),
           );
           controller.close();
