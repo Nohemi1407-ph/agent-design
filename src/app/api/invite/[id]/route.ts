@@ -16,5 +16,7 @@ export async function GET(
   if (!g || g.archivedAt) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, name: g.name });
+  // If no PIN set yet (admin cleared it), tell the UI to show setup form.
+  const needsPinSetup = !g.pin;
+  return NextResponse.json({ ok: true, name: g.name, needsPinSetup });
 }

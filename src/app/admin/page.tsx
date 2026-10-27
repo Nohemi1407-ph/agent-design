@@ -135,6 +135,17 @@ export default function AdminPage() {
     }
   }
 
+  async function resetPinForUser(id: string) {
+    if (!confirm("¿Resetear PIN? La próxima vez que entre a su link elegirá uno nuevo.")) return;
+    const res = await fetch(`/api/admin/guests/${id}/reset-pin`, {
+      method: "POST",
+    });
+    if (res.ok) {
+      alert("PIN reseteado. Dile al invitado que abra su link, elegirá un PIN nuevo.");
+      await load();
+    }
+  }
+
   async function copyInvite(id: string) {
     const url = `${window.location.origin}/invite/${id}`;
     try {
@@ -392,6 +403,7 @@ export default function AdminPage() {
                 onResetAnthropic={() => resetKey(g.id, "anthropic")}
                 onDelete={() => removeGuest(g.id, g.name)}
                 onKeysSaved={() => load()}
+                onResetPin={() => resetPinForUser(g.id)}
               />
             ))}
           </div>
@@ -444,6 +456,7 @@ function GuestCard({
   onResetAnthropic,
   onDelete,
   onKeysSaved,
+  onResetPin,
 }: {
   guest: GuestSummary;
   copied: boolean;
@@ -456,6 +469,7 @@ function GuestCard({
   onResetAnthropic: () => void;
   onDelete: () => void;
   onKeysSaved: () => void;
+  onResetPin: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(guest.name);
@@ -578,6 +592,13 @@ function GuestCard({
             className="text-xs px-2 py-1 rounded border border-border"
           >
             Regenerate PIN
+          </button>
+          <button
+            onClick={onResetPin}
+            className="text-xs px-2 py-1 rounded border border-border"
+            title="El invitado elige su nuevo PIN la próxima vez que entre al link"
+          >
+            Reset PIN (que lo elija él)
           </button>
           <button
             onClick={onGrant}

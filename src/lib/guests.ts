@@ -177,6 +177,34 @@ export async function regeneratePin(
   });
 }
 
+/** Clear a guest's PIN so they must choose a new one on their next invite visit. */
+export async function clearGuestPin(id: string): Promise<Guest | null> {
+  return await mutex.runExclusive(async () => {
+    const store = await loadStore();
+    const g = store.guests.find((x) => x.id === id);
+    if (!g) return null;
+    g.pin = undefined;
+    await writeStore(store);
+    return g;
+  });
+}
+
+/** Guest self-sets their own PIN (used when admin cleared it). */
+export async function setGuestPin(
+  id: string,
+  pin: string,
+): Promise<Guest | null> {
+  if (!/^\d{6}$/.test(pin)) return null;
+  return await mutex.runExclusive(async () => {
+    const store = await loadStore();
+    const g = store.guests.find((x) => x.id === id);
+    if (!g) return null;
+    g.pin = sha256(pin);
+    await writeStore(store);
+    return g;
+  });
+}
+
 export async function authenticateGuest(password: string): Promise<Guest | null> {
   if (!password) return null;
   const hash = sha256(password);
