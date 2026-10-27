@@ -23,6 +23,27 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+const FALLBACK_MODEL = "claude-3-5-sonnet-20241022";
+
+function isModelNotAvailableError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { status?: number; error?: { type?: string }; message?: string };
+  const msg = (e.message || "").toLowerCase();
+  if (e.status === 404) return true;
+  if (e.error?.type === "not_found_error") return true;
+  if (msg.includes("not_found_error") || msg.includes("model") && msg.includes("not")) return true;
+  return false;
+}
+
+function isVisionUnsupportedError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { message?: string; error?: { message?: string } };
+  const msg = ((e.message || "") + " " + (e.error?.message || "")).toLowerCase();
+  return (
+    msg.includes("vision") ||
+    msg.includes("image") && (msg.includes("not supported") || msg.includes("unsupported") || msg.includes("not allowed"))
+  );
+}
 
 const tools: Anthropic.Tool[] = [
   {
@@ -410,28 +431,74 @@ export async function POST(request: NextRequest) {
       let totalOutputTokens = 0;
       const MAX_ITERATIONS = 20;
 
+      let activeModel = MODEL;
+      let visionDisabled = false;
       try {
         for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-          const stream = client.messages.stream({
-            model: MODEL,
-            max_tokens: 8192,
-            system: systemPrompt,
-            tools,
-            messages,
-          });
-
-          for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              const text = event.delta.text;
-              fullText += text;
-              send({ type: "token", text });
+          let stream: ReturnType<typeof client.messages.stream>;
+          let finalMsg: Anthropic.Message;
+          // Up to 2 attempts on the first iteration to recover from
+          // (a) model-not-available on the guest's tier, and
+          // (b) vision-not-supported on the guest's tier.
+          let attempt = 0;
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            try {
+              stream = client.messages.stream({
+                model: activeModel,
+                max_tokens: 8192,
+                system: systemPrompt,
+                tools,
+                messages,
+              });
+              for await (const event of stream) {
+                if (
+                  event.type === "content_block_delta" &&
+                  event.delta.type === "text_delta"
+                ) {
+                  const text = event.delta.text;
+                  fullText += text;
+                  send({ type: "token", text });
+                }
+              }
+              finalMsg = await stream.finalMessage();
+              break;
+            } catch (err) {
+              // Only attempt fallbacks on the first outer iteration and only
+              // when we haven't yet produced text.
+              if (iter !== 0 || attempt >= 2 || fullText.length > 0) throw err;
+              if (isModelNotAvailableError(err) && activeModel !== FALLBACK_MODEL) {
+                console.warn(
+                  `[chat] model ${activeModel} unavailable for user, falling back to ${FALLBACK_MODEL}`,
+                  err instanceof Error ? err.message : err,
+                );
+                activeModel = FALLBACK_MODEL;
+                attempt++;
+                continue;
+              }
+              if (isVisionUnsupportedError(err) && !visionDisabled && refBlocks.length > 0) {
+                console.warn(
+                  "[chat] vision not supported on this key, retrying without image blocks",
+                  err instanceof Error ? err.message : err,
+                );
+                // Strip the vision user message we injected earlier.
+                for (let i = messages.length - 1; i >= 0; i--) {
+                  const m = messages[i];
+                  if (
+                    m.role === "user" &&
+                    Array.isArray(m.content) &&
+                    m.content.some((c) => c.type === "image")
+                  ) {
+                    messages.splice(i, 1);
+                  }
+                }
+                visionDisabled = true;
+                attempt++;
+                continue;
+              }
+              throw err;
             }
           }
-
-          const finalMsg = await stream.finalMessage();
           if (finalMsg.usage) {
             totalInputTokens += finalMsg.usage.input_tokens || 0;
             totalOutputTokens += finalMsg.usage.output_tokens || 0;
@@ -482,9 +549,18 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.error("[chat] Anthropic SDK error", err);
         const msg = err instanceof Error ? err.message : String(err);
+        const status = (err as { status?: number } | null)?.status;
+        const code =
+          status === 401
+            ? "ANTHROPIC_AUTH_FAILED"
+            : isModelNotAvailableError(err)
+              ? "ANTHROPIC_MODEL_UNAVAILABLE"
+              : undefined;
         try {
           controller.enqueue(
-            encoder.encode(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`),
+            encoder.encode(
+              `event: error\ndata: ${JSON.stringify({ error: msg, code, status })}\n\n`,
+            ),
           );
           controller.close();
         } catch {}

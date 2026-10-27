@@ -431,12 +431,34 @@ export default function AdminPage() {
 
         {ownerTokens && (
           <section className="rounded-xl border border-border bg-surface/50 p-5">
-            <h2 className="font-semibold mb-3">Owner Anthropic token spend</h2>
-            <div className="text-sm">
-              <div>Input: <span className="font-mono">{ownerTokens.inputTokens.toLocaleString()}</span></div>
-              <div>Output: <span className="font-mono">{ownerTokens.outputTokens.toLocaleString()}</span></div>
-              <div className="mt-1 font-semibold">≈ {fmtUsd(ownerTokens.estimatedUsd)}</div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold">Tu gasto Anthropic</h2>
+              <a
+                href="https://console.anthropic.com/settings/plans"
+                target="_blank"
+                rel="noopener"
+                className="text-xs text-accent hover:underline"
+              >
+                ver saldo real en Anthropic ↗
+              </a>
             </div>
+            <div className="text-sm grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-xs text-foreground/60">Input tokens</div>
+                <div className="font-mono text-xl mt-1">{ownerTokens.inputTokens.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <div className="text-xs text-foreground/60">Output tokens</div>
+                <div className="font-mono text-xl mt-1">{ownerTokens.outputTokens.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-accent bg-accent/10 p-3">
+                <div className="text-xs text-foreground/60">Gastado estimado</div>
+                <div className="font-mono text-xl mt-1 text-accent">{fmtUsd(ownerTokens.estimatedUsd)}</div>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] text-foreground/60">
+              Anthropic no expone saldo real por API — este es el gasto estimado basado en tokens consumidos ($3/MTok input, $15/MTok output). Para ver tu saldo exacto, abre tu dashboard de Anthropic.
+            </p>
           </section>
         )}
       </div>
@@ -704,25 +726,55 @@ function GuestCard({
         </div>
       </details>
 
-      <div className="grid grid-cols-3 gap-4 text-sm mb-3">
-        <div>
-          <div className="text-foreground/60">Balance</div>
-          <div className="text-xl font-semibold">{guest.balance}</div>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="rounded-lg border border-border bg-background/40 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-semibold text-foreground/80">kie.ai (imagen)</div>
+            {guest.hasKieKey ? (
+              <span className="text-[10px] text-green-500">● live</span>
+            ) : (
+              <span className="text-[10px] text-foreground/40">● off</span>
+            )}
+          </div>
+          <div className="text-2xl font-mono font-semibold">
+            {guest.hasKieKey && kieBalance != null
+              ? Math.floor(kieBalance).toLocaleString()
+              : "—"}
+          </div>
+          <div className="text-[11px] text-foreground/60 mt-1">créditos reales</div>
         </div>
-        <div>
-          <div className="text-foreground/60">Used</div>
-          <div className="text-xl font-semibold">{guest.used}</div>
-        </div>
-        <div>
-          <div className="text-foreground/60">Cap</div>
-          <div className="text-xl font-semibold">{guest.cap}</div>
+
+        <div className="rounded-lg border border-border bg-background/40 p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-semibold text-foreground/80">Anthropic (chat)</div>
+            <a
+              href="https://console.anthropic.com/settings/plans"
+              target="_blank"
+              rel="noopener"
+              className="text-[10px] text-accent hover:underline"
+            >
+              ver saldo real ↗
+            </a>
+          </div>
+          <div className="text-2xl font-mono font-semibold">
+            ${guest.tokens.estimatedUsd.toFixed(4)}
+          </div>
+          <div className="text-[11px] text-foreground/60 mt-1">
+            gastado · in {guest.tokens.inputTokens.toLocaleString()} / out {guest.tokens.outputTokens.toLocaleString()}
+          </div>
         </div>
       </div>
 
-      <div className="text-xs text-foreground/70 mb-3">
-        Anthropic tokens: in {guest.tokens.inputTokens.toLocaleString()} / out{" "}
-        {guest.tokens.outputTokens.toLocaleString()} · ≈{" "}
-        <span className="font-semibold">${guest.tokens.estimatedUsd.toFixed(4)}</span>
+      <div className="grid grid-cols-3 gap-4 text-xs mb-3 text-foreground/70">
+        <div>
+          Cupo tuyo: <span className="font-semibold text-foreground">{guest.balance}/{guest.cap}</span>
+        </div>
+        <div>
+          Usado: <span className="font-semibold text-foreground">{guest.used}</span>
+        </div>
+        <div className="text-right text-[10px] text-foreground/50 self-end">
+          Si usa su kie.ai propia, no toca tu cupo
+        </div>
       </div>
 
       {guest.recent.length > 0 && (
