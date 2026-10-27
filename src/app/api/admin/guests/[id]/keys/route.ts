@@ -38,8 +38,9 @@ async function validateAnthropic(apiKey: string): Promise<boolean> {
         messages: [{ role: "user", content: "hi" }],
       }),
     });
-    // 200 = valid; 400 = valid key but request shape issue (still valid key); 401 = invalid key
-    return res.status === 200 || res.status === 400;
+    // Only 401 means invalid key. 403/404 (model restricted or renamed),
+    // 429 (rate limited), 400 (shape), 5xx (overloaded) — key is still valid.
+    return res.status !== 401;
   } catch {
     return false;
   }
