@@ -385,7 +385,16 @@ export async function POST(request: NextRequest) {
   const refBlocks: Anthropic.ImageBlockParam[] = [];
   for (const src of refSources) {
     try {
-      const dl = await fetch(src.url);
+      // Hard timeout so a slow R2 fetch can't hang the entire chat
+      // request (symptom: user sees a blank chat for minutes).
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      let dl: Response;
+      try {
+        dl = await fetch(src.url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!dl.ok) continue;
       const ct = dl.headers.get("content-type") || "image/png";
       const media: Anthropic.ImageBlockParam.Source["media_type"] =
@@ -397,6 +406,11 @@ export async function POST(request: NextRequest) {
               ? "image/gif"
               : "image/png";
       const buf = Buffer.from(await dl.arrayBuffer());
+      // Anthropic caps image inputs at 5MB; skip oversized refs.
+      if (buf.byteLength > 5 * 1024 * 1024) {
+        console.warn(`[chat] skipping oversized reference image (${buf.byteLength} bytes): ${src.url}`);
+        continue;
+      }
       refBlocks.push({
         type: "image",
         source: { type: "base64", media_type: media, data: buf.toString("base64") },
@@ -432,6 +446,13 @@ export async function POST(request: NextRequest) {
       const send = (obj: unknown) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
       };
+      // SSE comment keepalive every 15s so Railway/CDN proxies don't
+      // kill an idle connection during long image-gen tool calls.
+      const keepalive = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: keepalive ${Date.now()}\n\n`));
+        } catch {}
+      }, 15_000);
       let fullText = "";
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
@@ -602,6 +623,7 @@ export async function POST(request: NextRequest) {
           controller.close();
         } catch {}
       } finally {
+        clearInterval(keepalive);
         try {
           await logTokenUsage({
             userId: chatUserId,
