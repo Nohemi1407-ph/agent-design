@@ -29,31 +29,68 @@ async function getBrowser(): Promise<Browser> {
 }
 
 /**
- * Inline all image references in slide HTML.
- * Replaces /uploads/xxx.png paths with data: URIs.
+ * Inline all image references in slide HTML so Puppeteer doesn't have
+ * to wait on the network during screenshot. Handles both legacy local
+ * /uploads/*.png paths AND remote https:// URLs (notably Cloudflare R2
+ * — where every generated slide image now lives).
  */
 async function inlineImages(html: string): Promise<string> {
   const uploadDir = path.resolve(process.cwd(), "public");
-  const imgRegex = /(?:src=["']|url\(["']?)(\/uploads\/[^"'\s)]+)/g;
+  const imgRegex = /(?:src=["']|url\(["']?)((?:\/uploads\/|https?:\/\/)[^"'\s)]+)/g;
   const matches = [...html.matchAll(imgRegex)];
 
   let result = html;
+  const seen = new Set<string>();
   for (const match of matches) {
-    const imgPath = match[1];
+    const url = match[1];
+    if (seen.has(url)) continue;
+    seen.add(url);
     try {
-      const fullPath = path.join(uploadDir, imgPath);
-      const buffer = await readFile(fullPath);
-      const ext = path.extname(imgPath).toLowerCase();
+      let buffer: Buffer;
+      let ext: string;
+      if (url.startsWith("/uploads/")) {
+        const fullPath = path.join(uploadDir, url);
+        buffer = await readFile(fullPath);
+        ext = path.extname(url).toLowerCase();
+      } else {
+        // Remote (R2 etc.) — fetch with timeout so a stuck host can't
+        // hang the export forever.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15_000);
+        let res: Response;
+        try {
+          res = await fetch(url, { signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!res.ok) continue;
+        buffer = Buffer.from(await res.arrayBuffer());
+        const ctype = (res.headers.get("content-type") || "").toLowerCase();
+        ext = ctype.includes("jpeg")
+          ? ".jpg"
+          : ctype.includes("webp")
+            ? ".webp"
+            : ctype.includes("gif")
+              ? ".gif"
+              : path.extname(new URL(url).pathname).toLowerCase() || ".png";
+      }
       const mime =
         ext === ".png"
           ? "image/png"
           : ext === ".jpg" || ext === ".jpeg"
             ? "image/jpeg"
-            : "image/webp";
+            : ext === ".webp"
+              ? "image/webp"
+              : ext === ".gif"
+                ? "image/gif"
+                : "image/png";
       const base64 = buffer.toString("base64");
-      result = result.replace(imgPath, `data:${mime};base64,${base64}`);
-    } catch {
-      // Keep original path — Puppeteer can fetch from localhost
+      // Escape regex special chars in the URL for the replace pattern.
+      const escaped = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      result = result.replace(new RegExp(escaped, "g"), `data:${mime};base64,${base64}`);
+    } catch (e) {
+      console.warn(`[export] failed to inline image ${url}:`, e instanceof Error ? e.message : e);
+      // Keep original — Puppeteer will attempt the network fetch itself.
     }
   }
 
@@ -86,7 +123,7 @@ export async function exportSlide(
 
   try {
     await page.setViewport({ width, height, deviceScaleFactor: 1 });
-    await page.setContent(fullHtml, { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.setContent(fullHtml, { waitUntil: "networkidle0", timeout: 30000 });
 
     // Wait for fonts to be ready
     await page
