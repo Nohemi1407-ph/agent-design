@@ -407,17 +407,28 @@ export async function generateImage(
     });
   }
 
-  // Charge the user in REAL kie.ai credits. Fall back to the resolution
-  // reserve if kie didn't report a delta (shouldn't happen on success).
+  // Only touch the local Prisma ledger when the user is drawing from
+  // the owner's reserved pool. Guests who connected their OWN kie.ai
+  // key already paid on their own account — we must NOT also deduct
+  // from the local cap (that was what made Joseph's balance go negative
+  // and prompted the "balance en negativo" warning in chat).
+  const chargedToOwnerPool =
+    userId !== "owner" && !(await getGuestKieKey(userId).catch(() => null));
   const charged = creditsUsed > 0 ? Math.ceil(creditsUsed) : slideCost;
-  const userTx = await recordTx({
-    userId,
-    type: "USAGE",
-    amount: -charged,
-    reason: `Slide ${resolution} · ${isImageToImage ? "image-to-image" : "text-to-image"}`,
-    taskId,
-    carouselId: body.carouselId,
-  });
+  const userBalanceAfter =
+    chargedToOwnerPool || userId === "owner"
+      ? (await recordTx({
+          userId,
+          type: "USAGE",
+          amount: -charged,
+          reason: `Slide ${resolution} · ${isImageToImage ? "image-to-image" : "text-to-image"}`,
+          taskId,
+          carouselId: body.carouselId,
+        })).balanceAfter
+      : // Guest using own key — no local accounting needed. Report
+        // their remaining real kie.ai balance instead so the chat
+        // model has something sensible to display.
+        (balanceAfter ?? 0);
 
   return {
     ok: true,
@@ -426,7 +437,7 @@ export async function generateImage(
     mode: isImageToImage ? "image-to-image" : "text-to-image",
     creditsUsed,
     balanceAfter,
-    userCreditsCharged: charged,
-    userBalanceAfter: userTx.balanceAfter,
+    userCreditsCharged: chargedToOwnerPool || userId === "owner" ? charged : 0,
+    userBalanceAfter,
   };
 }
