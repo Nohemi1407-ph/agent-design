@@ -289,11 +289,19 @@ export async function generateImage(
   const balanceBefore = await fetchKieBalance(apiKey);
 
   if (balanceBefore !== null && balanceBefore < minRequired) {
+    // Honest error: it's the kie.ai account balance that's low, not
+    // "the platform". For a guest with their own key, THEY must top up.
+    const isGuestOwnKey =
+      userId !== "owner" && !!(await getGuestKieKey(userId).catch(() => null));
     return {
       ok: false,
-      status: 503,
-      error: "The platform is temporarily out of generation capacity. Please try again in a few minutes.",
-      code: "SERVICE_UNAVAILABLE",
+      status: 402,
+      code: "KIE_BALANCE_LOW",
+      error: isGuestOwnKey
+        ? `Tu cuenta kie.ai tiene solo ${Math.floor(balanceBefore)} créditos (se necesitan al menos ${minRequired} para una imagen ${resolution}). Recarga tu cuenta en kie.ai y vuelve a intentarlo.`
+        : `El saldo kie.ai (${Math.floor(balanceBefore)}) está por debajo del mínimo (${minRequired}) para una imagen ${resolution}. Recarga en kie.ai.`,
+      balance: balanceBefore,
+      required: minRequired,
     };
   }
 
