@@ -13,6 +13,33 @@ import { getGuestKieKey } from "@/lib/guest-secrets";
 
 const OWNER_ID = "owner";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SPEND BARRIERS — prevent runaway credit consumption from chat retries,
+// parallel tool_use bursts, and duplicate requests.
+//
+// Why these exist: Joseph's kie.ai cuenta se vació de 269→6 en ~45min porque
+// el chat disparaba 5-6 generate_image en paralelo por slide, y cada reintento
+// del modelo relanzaba todo el carrusel. Estas barreras cortan eso.
+// ─────────────────────────────────────────────────────────────────────────────
+const PER_USER_RATE_WINDOW_MS = 60_000; // 1 min
+const PER_USER_MAX_IN_WINDOW = 8;       // máx 8 imágenes por minuto por usuario
+const DEDUP_WINDOW_MS = 30_000;         // mismo prompt no se repite dentro de 30s
+const inflight = new Map<string, Promise<unknown>>(); // userId -> running call
+const recentCalls = new Map<string, number[]>();      // userId -> timestamps
+const recentPrompts = new Map<string, number>();      // userId+hash -> timestamp
+
+function hashRequest(userId: string, prompt: string, inputs: string[], ar: string, res: string): string {
+  const h = crypto.createHash("sha1");
+  h.update(userId); h.update("|"); h.update(prompt);
+  h.update("|"); h.update(ar); h.update("|"); h.update(res);
+  h.update("|"); h.update(inputs.slice().sort().join(","));
+  return h.digest("hex");
+}
+
+function pruneWindow(arr: number[], now: number): number[] {
+  return arr.filter((t) => now - t < PER_USER_RATE_WINDOW_MS);
+}
+
 async function resolveApiKey(userId: string): Promise<string | null> {
   if (userId === "owner") return process.env.KIE_API_KEY || null;
   return getGuestKieKey(userId);
@@ -208,6 +235,75 @@ export async function generateImage(
   body: GenerateImageInput,
 ): Promise<GenerateImageResult | GenerateImageError> {
   const userId = await currentUserId();
+
+  // ── BARRERA 1: serialización por usuario ──
+  // Si ya hay una generación en curso para este usuario, espérala. Esto evita
+  // que un tool_use loop lance 5 imágenes en paralelo y queme créditos en
+  // ráfaga antes de que una respuesta de error pueda frenar al modelo.
+  const prev = inflight.get(userId);
+  if (prev) {
+    await prev.catch(() => {});
+  }
+
+  // ── BARRERA 2: rate limit por ventana ──
+  const nowTs = Date.now();
+  const windowArr = pruneWindow(recentCalls.get(userId) || [], nowTs);
+  if (windowArr.length >= PER_USER_MAX_IN_WINDOW) {
+    return {
+      ok: false,
+      status: 429,
+      code: "RATE_LIMIT",
+      error: `Demasiadas generaciones en poco tiempo (${windowArr.length}/${PER_USER_MAX_IN_WINDOW} en 1 min). Espera un momento antes de pedir más imágenes para no quemar créditos.`,
+    };
+  }
+
+  // ── BARRERA 3: dedup — mismo prompt no se repite en 30s ──
+  const promptClean = (body.prompt || "").trim();
+  const inputsClean = Array.isArray(body.inputImages)
+    ? body.inputImages.filter((s) => typeof s === "string" && s.trim())
+    : [];
+  const reqHash = hashRequest(
+    userId,
+    promptClean,
+    inputsClean,
+    body.aspectRatio || "auto",
+    body.resolution || "1K",
+  );
+  const dupKey = `${userId}:${reqHash}`;
+  const dupAt = recentPrompts.get(dupKey);
+  if (dupAt && nowTs - dupAt < DEDUP_WINDOW_MS) {
+    return {
+      ok: false,
+      status: 429,
+      code: "DUPLICATE_REQUEST",
+      error: "Esa misma imagen ya se pidió hace segundos. Espera a que termine en vez de reintentar.",
+    };
+  }
+
+  // Reservar el slot ANTES de llamar a kie (cuenta aunque falle)
+  windowArr.push(nowTs);
+  recentCalls.set(userId, windowArr);
+  recentPrompts.set(dupKey, nowTs);
+  // GC perezoso del map de dedup
+  if (recentPrompts.size > 500) {
+    for (const [k, t] of recentPrompts) {
+      if (nowTs - t > DEDUP_WINDOW_MS * 4) recentPrompts.delete(k);
+    }
+  }
+
+  const runPromise = _generateImageInner(body, userId);
+  inflight.set(userId, runPromise);
+  try {
+    return await runPromise;
+  } finally {
+    if (inflight.get(userId) === runPromise) inflight.delete(userId);
+  }
+}
+
+async function _generateImageInner(
+  body: GenerateImageInput,
+  userId: string,
+): Promise<GenerateImageResult | GenerateImageError> {
   const apiKey = await resolveApiKey(userId);
   if (!apiKey) {
     if (userId === "owner") {
