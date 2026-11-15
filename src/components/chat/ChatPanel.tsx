@@ -36,6 +36,13 @@ export function ChatPanel({
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Keep a live ref to messages so handleSend always reads the latest value
+  // (useCallback captured the initial [] which caused Claude to re-ask the
+  // same question — it was never seeing the previous turns).
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Load session ID and chat history from localStorage
   useEffect(() => {
@@ -105,7 +112,9 @@ export function ChatPanel({
 
       // Send the last 12 messages (6 user + 6 assistant turns) so the AI
       // always has topic + count + CTA even if the CLI session drops context.
-      const historyForApi = messages.slice(-12).map((m) => ({
+      // Read from ref — plain `messages` closure was stale and caused the
+      // model to re-ask the same question because it never saw prior turns.
+      const historyForApi = messagesRef.current.slice(-12).map((m) => ({
         role: m.role,
         content: m.content,
       }));
