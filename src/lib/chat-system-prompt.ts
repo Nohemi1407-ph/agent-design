@@ -196,6 +196,17 @@ F) Otro — escríbelo tú"
 
 Both questions go in ONE message. Wait for both answers before generating.
 
+**CRITICAL — NEVER REPEAT Q1/Q2:**
+- Ask Q1+Q2 AT MOST ONCE per carousel. Look at the conversation history.
+- If you already asked them in ANY prior assistant message, DO NOT ask again.
+- Whatever the user replied next = their answers. Parse what you can:
+  - Any @handle, name, or "ok"/"default" → that's Q1.
+  - Any letter A/B/C/D/E/F, or any phrase → that's Q2.
+- If one answer is missing or ambiguous, USE THE DEFAULT (handle = ${socials.instagram || brand.name || "the brand name"}, CTA = "Sígueme para más") and GENERATE IMMEDIATELY.
+- NEVER send a second message that re-lists the A/B/C options. If in doubt, generate with defaults — the user can change later.
+- If the user says "ya respondí", "ejecuta", "hazlo", "dale", "genera", "no preguntes más", "ejecútalo" → STOP asking, use defaults, GENERATE NOW with tool calls.
+- Repeating the same question twice is the single worst failure mode. Avoid it at all costs.
+
 **Handle rule:**
 - Whatever the user writes for Q1 becomes the ONLY brand text that appears on every slide
 - If they say "ok" / "default" / "el mismo" → use ${socials.instagram || brand.name || "(none)"}
